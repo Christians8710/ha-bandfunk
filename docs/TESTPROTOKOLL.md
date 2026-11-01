@@ -1,11 +1,11 @@
 # Hardware-Testprotokoll V0.1.0
 
-Stand: 1. November 2026. **Erste Tests erfolgt, RGB weiterhin nicht bestätigt.**
+Stand: 1. November 2026. **Besitzer bestätigt inzwischen die Ansteuerung beider Gruppen 2 und 6 über HA. Einzelne Farben, Aus und sämtliche Effekte sind damit nicht vollständig dokumentiert.**
 
 | Armband | Sichtbare Platine | Gehäusegruppe | Protokoll bestätigt |
 |---|---|---|---|
-| Band 1 | 23A033V5 | 6 | nein |
-| Band 2 | 23A033V5 | 2 | nein |
+| Band 1 | 23A033V5 | 6 | Basissteuerung vom Besitzer bestätigt |
+| Band 2 | 23A033V5 | 2 | Basissteuerung vom Besitzer bestätigt |
 
 Datum, Tester, ESP-Modell/Flashgröße, E07-Modellzusatz, Verdrahtung, Antenne, Versorgung und Firmware-SHA256 dokumentieren. Private WLAN-/API-Daten nicht eintragen.
 
@@ -66,3 +66,15 @@ Diagnosegrundlagen: [TI-Datenblatt SWRS061I](https://www.ti.com/lit/ds/symlink/c
 - WiFiManager `/u` und `/update` auch per direktem POST testen: 403, kein Flash-Schreiben.
 - Fehlender/falscher Formularschlüssel und Zugriff über LAN statt AP: Speichern abgewiesen.
 - RESET öffnet OTA-Fenster; kalter Stromstart tut das nicht. Fenster über Geräte-Webseite schließen; Funk dann wieder freigebbar.
+
+
+## Prüfplan für 0.2.0
+
+- Migration von 0.1.7: WLAN und bisheriger API-Schlüssel erhalten; Weblogin admin / bandfunk2026 getrennt vom API-Schlüssel.
+- Unangemeldete Websteuerung und fehlender/falscher CSRF-Schlüssel werden abgewiesen; HA-Bearer authentifiziert keine Browser-Administration.
+- Web: Gruppen 2 und 6, Farbe, Helligkeit, Effekt, AUS und erneutes EIN mit erhaltener Farbe. HA liest dieselben Sollwerte.
+- Dauerfreigabe über mehr als 120 Sekunden ohne erneute Aktivierung; vollständige Impulsfolgen steigen weiter, keine Timerfehler.
+- Zustand nach drei Sekunden gespeichert; Neustart erhält Gruppenwerte und manuell ausgeschaltete bzw. eingeschaltete Funkfreigabe.
+- Browserpasswort: falsches bisheriges Passwort abgewiesen; neues Passwort speicherbar, alte Browser-Sitzungen danach ungültig; HA-API unverändert.
+- OTA ohne physisches Fenster / ohne Anmeldung / ohne Seitenschlüssel / ohne gültige Signatur abgewiesen. Nach abgelehntem Upload normaler Funkbetrieb wiederhergestellt.
+- Physischer Recovery-AP: Adminpasswort zurücksetzbar, WLAN und API-Schlüssel bleiben erhalten. Bibliotheks-OTA weiterhin gesperrt.

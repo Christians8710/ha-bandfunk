@@ -30,15 +30,39 @@ class BandFunkLight(BandFunkEntity, LightEntity):
 
     @property
     def is_on(self):
+        if self.control is not None:
+            return self.control[5] and self.control[3]>0 and self.control[4]!=15
         return any(self.coordinator.data["groups"][self.group][:3]) and self.coordinator.data["groups"][self.group][3] != 15
 
     @property
+    def control(self):
+        if self.coordinator.data.get("control_api")==2:
+            return self.coordinator.data["control"][self.group]
+        return None
+
+    @property
     def rgb_color(self):
+        if self.control is not None:
+            return tuple(self.control[:3])
         return tuple(v * 17 for v in self.coordinator.data["groups"][self.group][:3])
 
     @property
+    def brightness(self):
+        return self.control[3] if self.control is not None else 255
+
+    @property
     def effect(self):
+        if self.control is not None:
+            return EFFECTS[self.control[4]]
         return EFFECTS[self.coordinator.data["groups"][self.group][3]]
+
+    async def _send_control(self, rgb, brightness, effect, on):
+        try:
+            await self.coordinator.api.command("control", {"group":self.group+1,
+                "r":rgb[0],"g":rgb[1],"b":rgb[2],"brightness":brightness,"effect":effect,"on":on})
+            await self.coordinator.async_request_refresh()
+        except (CannotConnect,InvalidAuth) as err:
+            raise HomeAssistantError("Sollwert konnte nicht gespeichert werden; Geräteverbindung prüfen") from err
 
     async def _send(self, rgb, effect):
         try:
@@ -49,6 +73,11 @@ class BandFunkLight(BandFunkEntity, LightEntity):
             raise HomeAssistantError("Befehl abgelehnt. Experimentelle Funkübertragung aktivieren; keine Empfangsbestätigung möglich.") from err
 
     async def async_turn_on(self, **kwargs):
+        if self.control is not None:
+            await self._send_control(kwargs.get("rgb_color",self.rgb_color),
+                kwargs.get("brightness",self.brightness or 255),
+                EFFECTS.index(kwargs.get("effect",self.effect)),True)
+            return
         rgb = kwargs.get("rgb_color", self.rgb_color if self.is_on else (255,255,255))
         brightness = kwargs.get("brightness", 255)
         rgb = tuple(round(v * brightness / 255) for v in rgb)
@@ -56,4 +85,7 @@ class BandFunkLight(BandFunkEntity, LightEntity):
         await self._send(rgb, effect)
 
     async def async_turn_off(self, **kwargs):
+        if self.control is not None:
+            await self._send_control(self.rgb_color,self.brightness,EFFECTS.index(self.effect),False)
+            return
         await self._send((0,0,0), 0)

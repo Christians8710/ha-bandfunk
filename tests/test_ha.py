@@ -8,6 +8,8 @@ from custom_components.bandfunk.config_flow import ConfigFlow
 from custom_components.bandfunk.api import InvalidAuth, CannotConnect
 from custom_components.bandfunk.diagnostics import async_get_config_entry_diagnostics
 from types import SimpleNamespace
+from custom_components.bandfunk.light import BandFunkLight
+from custom_components.bandfunk.switch import BandFunkTX
 
 
 def run_flow(api_result=None, error=None):
@@ -56,3 +58,25 @@ def test_diagnostics_allowlist_with_old_and_new_firmware(extra):
     result=asyncio.run(async_get_config_entry_diagnostics(hass,SimpleNamespace(entry_id="entry")))
     assert result["available"] is True
     assert result["status"] == {"api":1,"version":"0.1.5",**extra}
+
+
+def test_standalone_light_preserves_color_brightness_when_off():
+    c=MagicMock();c.device_id="aabbcc112233"
+    c.data={"control_api":2,"control":[[31,85,255,90,2,True] for _ in range(10)]}
+    c.api.command=AsyncMock();c.async_request_refresh=AsyncMock()
+    light=BandFunkLight(c,5)
+    asyncio.run(light.async_turn_off())
+    c.api.command.assert_awaited_once_with("control",{"group":6,"r":31,"g":85,"b":255,"brightness":90,"effect":2,"on":False})
+    c.data["control"][5][5]=False
+    c.api.command.reset_mock()
+    asyncio.run(light.async_turn_on())
+    c.api.command.assert_awaited_once_with("control",{"group":6,"r":31,"g":85,"b":255,"brightness":90,"effect":2,"on":True})
+
+
+def test_persistent_master_switch_uses_same_api_without_duration():
+    c=MagicMock();c.device_id="aabbcc112233";c.data={"tx_enabled":True}
+    c.api.command=AsyncMock();c.async_request_refresh=AsyncMock()
+    switch=BandFunkTX(c,"tx_enabled","Funkübertragung")
+    assert switch.is_on
+    asyncio.run(switch.async_turn_off())
+    c.api.command.assert_awaited_once_with("tx",{"enabled":False})

@@ -44,6 +44,15 @@ def validate_status(data: dict) -> dict:
     for group in data["groups"]:
         if not isinstance(group, list) or len(group) != 4 or any(type(v) is not int or not 0 <= v <= 15 for v in group):
             raise CannotConnect("Ungültige Gruppendaten")
+    if "control_api" in data:
+        controls=data.get("control")
+        if data["control_api"]!=2 or not isinstance(controls,list) or len(controls)!=10:
+            raise CannotConnect("Ungültige Steuerdaten")
+        for control in controls:
+            if not isinstance(control,list) or len(control)!=6 or type(control[5]) is not bool:
+                raise CannotConnect("Ungültige Steuerdaten")
+            if any(type(v) is not int or not 0<=v<=(15 if i==4 else 255) for i,v in enumerate(control[:5])):
+                raise CannotConnect("Ungültige Steuerdaten")
     return data
 
 
@@ -77,7 +86,7 @@ class BandFunkAPI:
             raise CannotConnect from err
 
     async def command(self, endpoint, payload):
-        if endpoint not in ("tx", "light"):
+        if endpoint not in ("tx", "light", "control"):
             raise ValueError("Unbekannter Befehl")
         try:
             async with self.session.post(f"http://{self.host}/api/{endpoint}", json=payload,

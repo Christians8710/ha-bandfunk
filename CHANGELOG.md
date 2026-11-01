@@ -1,5 +1,17 @@
 # Änderungen
 
+## 0.2.0
+
+BandFunk wird eigenständiger Web-Funkcontroller; Home Assistant bleibt optional. Lokale deutsche Webseite mit Logo, Gruppenwahl, Ein/Aus, Farbe, Helligkeit, Effekten und Dauerfreigabe. Funkfreigabe und zehn Gruppeneinstellungen bleiben nach Neustart erhalten; AUS bewahrt die zuletzt gewählte Farbe. Atomare Konfigurationsspeicherung nach drei Sekunden Ruhe statt Flash-Schreiben bei jedem Slider-Schritt.
+
+Separater Webzugang: Benutzer `admin`, Startpasswort `bandfunk2026`, auf der Webseite änderbar. Passwort-Digest statt Klartext gespeichert. Browser-Sitzungen, Abmeldung und CSRF-Schutz für Änderungen; bisheriger HA-API-Schlüssel und WLAN-Daten werden übernommen. Vergessenes Webpasswort lässt sich ausschließlich im physisch gestarteten Einrichtungs-WLAN zurücksetzen. Keine Ausgabe des API-Schlüssels mehr im seriellen Startprotokoll; Anzeige nach Web-Anmeldung bleibt.
+
+Signiertes OTA weiterhin nur im fünfminütigen Fenster nach physischem RESET. Das Berechtigungsfenster blockiert den normalen Funkbetrieb nicht mehr; während des Uploads werden Timer und Funk gestoppt. Abgewiesene oder abgebrochene Uploads geben den Funk anschließend wieder frei. Kein A/B-Rollback; USB-Recovery bleibt für defekte Startcodes nötig.
+
+HA erhält gespeicherte Farbe/Helligkeit/Ein-Aus separat und gleicht Änderungen der Weboberfläche alle fünf Sekunden ab. Bestehende Entitäts-IDs bleiben erhalten; ältere API-1-Firmware bleibt unterstützt. API-1-Bearer-Endpunkte um typgeprüfte Steuerdaten erweitert; browserbasierte Administration kann nicht mit dem HA-API-Schlüssel übernommen werden.
+
+Hardwarestand: Besitzer bestätigt, dass beide Bänder mit aufgedruckter Gruppe 2 und 6 über HA reagieren. Das ist keine Bestätigung aller Effekte oder aller V5-Geräte.
+
 ## 0.1.8 (HA-Integration)
 
 Lokales BandFunk-Symbol für Home Assistant ergänzt: `brand/icon.png` (256 px) und `brand/icon@2x.png` (512 px), transparent für helle und dunkle Oberflächen. Seit Home Assistant 2026.3 wird es direkt aus der installierten Custom-Integration geladen; kein externer Brands-PR erforderlich. Motiv aus dem freigegebenen BandFunk-Logo abgeleitet. Firmware bleibt 0.1.7; kein ESP-Update nötig.

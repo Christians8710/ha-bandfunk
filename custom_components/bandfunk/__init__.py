@@ -11,7 +11,7 @@ class BandFunkCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, entry):
         import logging
         super().__init__(hass, logging.getLogger(__name__), name=DOMAIN,
-                         update_interval=timedelta(seconds=30))
+                         update_interval=timedelta(seconds=5))
         self.api = BandFunkAPI(async_get_clientsession(hass), entry.data["host"], entry.data["token"])
         self.device_id = entry.unique_id
 

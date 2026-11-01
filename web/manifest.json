@@ -1,13 +1,13 @@
 {
   "name": "BandFunk HA",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "new_install_prompt_erase": true,
   "builds": [
     {
       "chipFamily": "ESP8266",
       "parts": [
         {
-          "path": "bandfunk-0.1.7.bin",
+          "path": "bandfunk-0.2.0.bin",
           "offset": 0
         }
       ]

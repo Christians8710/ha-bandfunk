@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Connect BandFunk",
-        "description": "Install the ESP on this PC using the [web flasher]({flasher_url}), then provision Wi-Fi. Enter hostname without http:// and the API key from the USB console. The local HTTP API requires a trusted LAN. RGB is experimental and needs testing on your wristband.",
+        "description": "Optional: BandFunk mit Home Assistant verbinden. Der Controller ist bereits ohne HA über seine lokale Webseite bedienbar. ESP einmalig am aktuellen PC über den [Web-Flasher]({flasher_url}) installieren. Host ohne http:// eingeben. Den separaten HA-API-Schlüssel findest du nach Anmeldung auf der Geräte-Webseite. Webzugang: admin / bandfunk2026, falls noch nicht geändert. Zustände sind Sollwerte ohne Empfangsbestätigung.",
         "data": {
           "host": "Host",
           "token": "API key"

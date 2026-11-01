@@ -2,6 +2,7 @@
 #include "crowdsync.h"
 #include "provision_guard.h"
 #include "radio_tx.h"
+#include "control_state.h"
 
 struct FakeRadio {
   uint8_t regs[64]={}, paOff=0, paOn=0, state=0x0D;
@@ -37,6 +38,14 @@ void testRadioTX() {
   FakeRadio spi; spi.regs[0x25]=0xFF; assert(!prepareRadioTX(spi,check));
 }
 int main() {
+  GroupSetting setting;
+  assert(appliedColor(setting).r==0);
+  setting.on=true;setting.r=255;setting.g=0;setting.b=0;setting.brightness=128;setting.effect=2;
+  auto color=appliedColor(setting);assert(color.r==8 && color.g==0 && color.b==0 && color.effect==2);
+  setting.on=false;color=appliedColor(setting);assert(color.r==0 && color.effect==0);
+  assert(setting.r==255 && setting.brightness==128 && setting.effect==2);
+  assert(validAdminPassword("bandfunk2026"));assert(!validAdminPassword("short"));assert(!validAdminPassword("bad\npassword"));
+  assert(!validAdminPassword(nullptr));
   testRadioTX();
   const char* nonce="0123456789abcdef0123456789abcdef";
   assert(allowProvision(true,true,nonce,nonce));

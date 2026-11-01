@@ -14,6 +14,9 @@ extern "C" {
 #include "protocol.h"
 #include "crowdsync.h"
 #include "radio_tx.h"
+#include "control_state.h"
+#include "device_page.h"
+#include "app_icon.h"
 #include "wifi_portal.h"
 #include "provision_guard.h"
 
@@ -25,7 +28,14 @@ BearSSL::PublicKey otaKey(OTA_PUBLIC_KEY);
 BearSSL::HashSHA256 otaHash;
 BearSSL::SigningVerifier otaVerify(&otaKey);
 UnknownOOK decoder;
-String token, ssid, password, apPassword, deviceId, hostname, provisionNonce;
+String token, ssid, password, apPassword, deviceId, hostname, provisionNonce, adminHA1, webNonce;
+struct AdminSession { String key; uint32_t until=0; } sessions[4];
+bool adminDefault=true, radioEnabled=true, configDirty=false, configSaveError=false;
+bool uploadBusy=false, restoreRadio=false;
+uint32_t configChangedAt=0, nextLoginAt=0;
+GroupSetting controls[10];
+void markConfigDirty() { configDirty=true; configChangedAt=millis(); }
+void syncGroups();
 BandFunkWiFiManager wifiManager;
 std::unique_ptr<WiFiManagerParameter> portalKeyParameter;
 String portalParameterHTML;
@@ -46,14 +56,14 @@ volatile uint16_t head = 0, tail = 0;
 volatile uint32_t durations[256];
 volatile uint8_t levels[256];
 GroupColor groups[10];
-uint32_t txUntil=0, lastTx=0, txPackets=0;
+uint32_t lastTx=0, txPackets=0;
 uint32_t txAttempts=0, txCompleted=0, txErrors=0, txWaveStarted=0, txDuration=0;
 TxCheck txCheck;
 volatile uint32_t txLastEdgeUs=0, txWaveEndUs=0, txLateEdges=0, txMaxLateness=0;
 volatile bool txRunning=false, txDone=false;
 volatile uint16_t waveIndex=0;
 uint16_t wave[358];
-bool txEnabled() { return txUntil && int32_t(txUntil-millis())>0; }
+bool txEnabled() { return radioEnabled; }
 void IRAM_ATTR txTimer() {
   uint32_t now=micros();
   uint32_t elapsed=now-txLastEdgeUs;
@@ -81,22 +91,59 @@ bool requireToken() {
   if (authorized()) return true;
   server.send(401, "text/plain; charset=utf-8", "API-Schlüssel erforderlich"); return false;
 }
-bool requireAdmin() {
-  if (server.authenticate("admin", token.c_str())) return true;
-  server.requestAuthentication(DIGEST_AUTH, "BandFunk", "Anmeldung erforderlich"); return false;
+String adminHash(const String& value) { return server.credentialHash("admin","BandFunk",value); }
+bool digestAdmin() { return server.authenticateDigest("admin",adminHA1); }
+int sessionIndex() {
+  String cookie=server.header("Cookie");
+  int start=cookie.indexOf("bf_session=");
+  if (start<0 || (start>0 && cookie[start-1]!=' ' && cookie[start-1]!=';')) return -1;
+  String value=cookie.substring(start+11); int end=value.indexOf(';');
+  if (end>=0) value=value.substring(0,end);
+  if (value.length()!=64) return -1;
+  for (int i=0;i<4;++i) if (sessions[i].key==value && int32_t(sessions[i].until-millis())>0) return i;
+  return -1;
 }
+bool adminAllowed() { return sessionIndex()>=0 || digestAdmin(); }
+bool requireAdmin(bool json=false) {
+  if (adminAllowed()) return true;
+  if (json) server.send(401,"text/plain; charset=utf-8","Bitte anmelden.");
+  else server.requestAuthentication(DIGEST_AUTH,"BandFunk","Anmeldung erforderlich");
+  return false;
+}
+bool validCSRF() { return server.header("X-BandFunk-CSRF")==webNonce || server.arg("csrf")==webNonce; }
+bool requireWebWrite() {
+  if (!requireAdmin(true)) return false;
+  if (validCSRF()) return true;
+  server.send(403,"text/plain; charset=utf-8","Seite abgelaufen. Bitte neu laden."); return false;
+}
+void pageHeaders() {
+  server.sendHeader("Cache-Control","no-store"); server.sendHeader("X-Frame-Options","DENY");
+  server.sendHeader("Referrer-Policy","no-referrer"); server.sendHeader("X-Content-Type-Options","nosniff");
+}
+void redirect(const char* path) { server.sendHeader("Location",path); server.send(303,"text/plain",""); }
+void loginPage() {
+  pageHeaders(); server.chunkedResponseModeStart(200,"text/html; charset=utf-8"); server.sendContent_P(DEVICE_HEAD);
+  server.sendContent("<section class='card'><h2>Anmelden</h2><p>Dein lokaler BandFunk-Controller. Startzugang: admin / bandfunk2026. Ein selbst geändertes Passwort hat Vorrang.</p><form action='/login' method='post'><input type='hidden' name='csrf' value='"+webNonce+"'><label>Benutzer<input name='username' value='admin' autocomplete='username' required></label><label>Passwort<input name='password' type='password' autocomplete='current-password' required></label><p><button>Anmelden</button></p></form><p>Nach einer Passwortänderung bitte mit dem neuen Passwort anmelden.</p></section></main></body></html>");
+  server.chunkedResponseFinalize();
+}
+void syncGroups() { for (int i=0;i<10;++i) groups[i]=appliedColor(controls[i]); }
 void saveBoot() {
   boot.check = boot.magic ^ boot.count ^ 0xB4F06A11;
   // Offset 64: do not overwrite eboot OTA command at RTC offset zero.
   ESP.rtcUserMemoryWrite(64, reinterpret_cast<uint32_t*>(&boot), sizeof(boot));
 }
 bool saveConfig() {
-  StaticJsonDocument<512> doc;
-  doc["token"] = token; doc["ssid"] = ssid; doc["password"] = password;
-  File f = LittleFS.open("/config.new", "w");
-  if (!f) return false;
-  bool ok = serializeJson(doc, f) > 0; f.flush(); f.close();
-  return ok && LittleFS.rename("/config.new", "/config.json");
+  DynamicJsonDocument doc(3072);
+  if (!doc.capacity()) return false;
+  doc["schema"]=2; doc["token"]=token; doc["ssid"]=ssid; doc["password"]=password;
+  doc["admin_ha1"]=adminHA1; doc["admin_default"]=adminDefault; doc["radio_enabled"]=radioEnabled;
+  JsonArray list=doc.createNestedArray("control");
+  for (const auto& c:controls) { JsonArray a=list.createNestedArray(); a.add(c.r);a.add(c.g);a.add(c.b);a.add(c.brightness);a.add(c.effect);a.add(c.on); }
+  if (doc.overflowed()) return false;
+  File f=LittleFS.open("/config.new","w"); if (!f) return false;
+  size_t written=serializeJson(doc,f); f.flush();
+  bool ok=written==measureJson(doc) && !f.getWriteError(); f.close();
+  return ok && LittleFS.rename("/config.new","/config.json");
 }
 bool selectRadio() {
   digitalWrite(CS, LOW);
@@ -180,28 +227,28 @@ void finishTX() {
   if (completed && stillTX) {
     ++txCompleted; txDuration=txWaveEndUs-txWaveStarted;
   } else {
-    ++txErrors; txUntil=0;
+    ++txErrors; radioEnabled=false; markConfigDirty();
     txCheck.error=completed?"CC1101 hat TX vorzeitig verlassen":"Impulsfolge hat Zeitlimit erreicht";
   }
   txRunning=false;
   bool idle=strobe(0x36) && radio.waitState(0x01,state);
   if (idle) pinMode(DATA,INPUT);
   if (!idle || !regWrite(0x02,0x0D) || !strobe(0x34)) {
-    radioOK=false; txUntil=0; txCheck.error="Rueckkehr in Empfang fehlgeschlagen";
+    radioOK=false; radioEnabled=false; markConfigDirty(); txCheck.error="Rueckkehr in Empfang fehlgeschlagen";
   } else {
     attachInterrupt(digitalPinToInterrupt(DATA),onEdge,CHANGE);
   }
   txDone=false;
 }
 void startTX() {
-  if (!radioOK || safeMode || portal || armed() || txRunning || txDone) return;
+  if (!radioOK || safeMode || portal || uploadBusy || txRunning || txDone) return;
   uint8_t packet[22]; buildPacket(groups,packet); buildWave(packet,wave);
   detachInterrupt(digitalPinToInterrupt(DATA));
   ++txAttempts;
   RadioTXAccess radio;
   // Release the receiver output before the ESP drives this shared pin.
   if (!prepareRadioTX(radio,txCheck)) {
-    ++txErrors; txUntil=0; radioOK=false;
+    ++txErrors; radioEnabled=false; markConfigDirty(); radioOK=false;
     strobe(0x36); pinMode(DATA,INPUT); return;
   }
   waveIndex=0; txRunning=true; txWaveEndUs=0;
@@ -210,10 +257,9 @@ void startTX() {
   ++txPackets; lastTx=millis();
 }
 void sendStatus() {
-  if (!requireToken()) return;
   // HTTP handlers already use the small ESP8266 continuation stack.
   // Keep the expanded diagnostic document on the heap.
-  DynamicJsonDocument doc(3072);
+  DynamicJsonDocument doc(4096);
   if (!doc.capacity()) { server.send(503,"text/plain","Zu wenig Diagnosespeicher"); return; }
   doc["api"]=1; doc["id"]=deviceId; doc["version"]=FW_VERSION;
   doc["protocol"]=decoder.name(); doc["rssi"]=WiFi.RSSI();
@@ -221,7 +267,9 @@ void sendStatus() {
   doc["radio_ok"]=radioOK; doc["safe_mode"]=safeMode; doc["ota_armed"]=armed();
   doc["edges"]=edgeCount; doc["dropped"]=dropped;
   doc["protocol"]="crowdsync_rf_experimentell";
-  doc["tx_enabled"]=txEnabled(); doc["tx_packets"]=txPackets;
+  doc["tx_enabled"]=txEnabled(); doc["tx_active"]=txEnabled() && radioOK && !safeMode && !portal && !uploadBusy;
+  doc["control_api"]=2; doc["config_saved"]=!configDirty; doc["config_error"]=configSaveError;
+  doc["admin_default"]=adminDefault; doc["tx_packets"]=txPackets;
   doc["tx_attempts"]=txAttempts; doc["tx_completed"]=txCompleted; doc["tx_errors"]=txErrors;
   doc["tx_config_verified"]=txCheck.configVerified;
   doc["tx_idle_state"]=txCheck.idleState; doc["tx_chip_state"]=txCheck.txState;
@@ -231,87 +279,115 @@ void sendStatus() {
   doc["tx_wave_us"]=txDuration; doc["tx_late_edges"]=txLateEdges; doc["tx_max_late_us"]=txMaxLateness;
   JsonArray list=doc.createNestedArray("groups");
   for (const auto& g:groups) { JsonArray a=list.createNestedArray(); a.add(g.r); a.add(g.g); a.add(g.b); a.add(g.effect); }
+  JsonArray desired=doc.createNestedArray("control");
+  for (const auto& c:controls) { JsonArray a=desired.createNestedArray();a.add(c.r);a.add(c.g);a.add(c.b);a.add(c.brightness);a.add(c.effect);a.add(c.on); }
+  if (doc.overflowed()) { server.send(503,"text/plain","Diagnosespeicher voll"); return; }
   String body; serializeJson(doc,body); server.send(200,"application/json",body);
 }
-const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BandFunk HA</title>
-<h1>BandFunk HA 0.1.7</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
-<p>OTA: Den vorhandenen RESET-Taster kurz drücken. Danach ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen. Für RGB-Tests das OTA-Fenster schließen.</p>
-<form method="post" action="/ota/close"><button>OTA-Fenster schließen und Funk freigeben</button></form>
-<form method="post" action="/update" enctype="multipart/form-data"><label>Signierte Firmware <input type="file" name="firmware" required></label><button>Firmware installieren</button></form>
-<p>Anmeldung: Benutzer admin, Passwort = persönlicher API-Schlüssel von der Einrichtungsseite. Nur im vertrauenswürdigen lokalen Netz verwenden.</p>)HTML";
 String keyPanel() {
   return String("<section><h2>Dein API-Schlüssel für Home Assistant</h2><p>Bei der Einrichtung der BandFunk-Integration einmal eintragen. Dies ist nicht das WLAN-Passwort.</p><label>API-Schlüssel <input id=api-key readonly style='width:100%;box-sizing:border-box' value='") + token +
     "'></label><button type=button onclick=\"var k=document.getElementById('api-key');k.select();try{document.execCommand('copy');this.textContent='Kopiert';}catch(e){this.textContent='Markiert – bitte kopieren';}\">API-Schlüssel kopieren</button><p>Geräteadresse im Heimnetz: <strong>http://" + hostname + ".local/</strong></p></section>";
 }
+void handleTX(bool web) {
+  if (!(web?requireWebWrite():requireToken())) return;
+  StaticJsonDocument<128> d;
+  if (server.arg("plain").length()>128 || deserializeJson(d,server.arg("plain")) || !d["enabled"].is<bool>()) { server.send(400); return; }
+  radioEnabled=d["enabled"].as<bool>(); markConfigDirty();
+  server.send(200,"application/json","{\"ok\":true}");
+}
+void handleControl(bool web,bool legacy=false) {
+  if (!(web?requireWebWrite():requireToken())) return;
+  StaticJsonDocument<384> d;
+  if (server.arg("plain").length()>384 || deserializeJson(d,server.arg("plain"))) { server.send(400); return; }
+  for (const char* key:{"group","r","g","b","effect"}) if (!d[key].is<int>()) { server.send(400); return; }
+  int group=d["group"],r=d["r"],g=d["g"],b=d["b"],effect=d["effect"];
+  int maximum=legacy?15:255;
+  if (group<1 || group>10 || r<0 || r>maximum || g<0 || g>maximum || b<0 || b>maximum || effect<0 || effect>15) { server.send(400); return; }
+  auto& c=controls[group-1];
+  if (legacy) {
+    if (r || g || b) { c.r=r*17;c.g=g*17;c.b=b*17;c.brightness=255;c.effect=effect;c.on=true; }
+    else c.on=false;
+  } else {
+    if (!d["brightness"].is<int>() || !d["on"].is<bool>()) { server.send(400); return; }
+    int brightness=d["brightness"]; if (brightness<0 || brightness>255) { server.send(400); return; }
+    c.r=r;c.g=g;c.b=b;c.brightness=brightness;c.effect=effect;c.on=d["on"];
+  }
+  syncGroups(); markConfigDirty(); server.send(200,"application/json","{\"ok\":true}");
+}
 void setupRoutes() {
-  server.collectHeaders("Authorization", "Origin");
-  server.on("/ota/close",HTTP_POST,[](){
-    if (!requireAdmin()) return;
-    otaUntil=0;
-    server.sendHeader("Location","/"); server.send(303,"text/plain","");
+  server.collectHeaders("Authorization","Origin","Cookie","X-BandFunk-CSRF");
+  server.on("/assets/icon.png",HTTP_GET,[](){ server.send_P(200,PSTR("image/png"),reinterpret_cast<const char*>(APP_ICON),sizeof(APP_ICON)); });
+  server.on("/login",HTTP_GET,loginPage);
+  server.on("/login",HTTP_POST,[](){
+    pageHeaders();
+    if (!validCSRF()) { server.send(403,"text/plain","Bitte Anmeldeseite neu laden."); return; }
+    if (int32_t(nextLoginAt-millis())>0) { server.send(429,"text/plain","Bitte kurz warten."); return; }
+    if (server.arg("username")!="admin" || adminHash(server.arg("password"))!=adminHA1) {
+      nextLoginAt=millis()+1000; server.send(401,"text/plain; charset=utf-8","Benutzer oder Passwort falsch. Zurück zur Anmeldung und erneut versuchen.");return;
+    }
+    int slot=0;
+    for (int i=0;i<4;++i) if (!sessions[i].key.length() || int32_t(sessions[i].until-millis())<=0) { slot=i;break; }
+    sessions[slot].key=randomHex(32); sessions[slot].until=millis()+86400000;
+    server.sendHeader("Set-Cookie","bf_session="+sessions[slot].key+"; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400"); redirect("/");
   });
-  server.on("/", HTTP_GET, []() {
-    server.sendHeader("Cache-Control","no-store");
-    server.sendHeader("X-Frame-Options","DENY");
-    server.sendHeader("Referrer-Policy","no-referrer");
-    if (!requireAdmin()) return;
-    String page=FPSTR(PAGE);
-    page+="<section><h2>Funkdiagnose</h2><p>Startversuche: "+String(txAttempts)+
-      "; Chip-Sendestatus bestaetigt: "+String(txPackets)+"; vollstaendige Impulsfolgen: "+String(txCompleted)+
-      "; Fehler: "+String(txErrors)+".</p><p>Letzter Hinweis: "+String(txCheck.error[0]?txCheck.error:"Kein Fehler erkannt")+
-      ".</p><p>Abweichendes Register (dezimal, 255 = keine Abweichung): "+String(txCheck.mismatchAddress)+
-      "; Sollwert: "+String(txCheck.expectedValue)+"; Istwert: "+String(txCheck.actualValue)+
-      ".</p><p>Letzte Impulsfolge: "+String(txDuration)+" Mikrosekunden; groesste Impulsverspaetung: "+String(txMaxLateness)+
-      " Mikrosekunden.</p><p>Chip-Zustaende und Impulszaehler bestaetigen weder die abgestrahlte Funkleistung noch den Empfang am Armband. Seite fuer neue Werte neu laden.</p></section>";
-    page+=keyPanel(); page+="</html>";
-    server.send(200,"text/html; charset=utf-8",page);
+  server.on("/logout",HTTP_POST,[](){
+    if (!requireWebWrite()) return;
+    int i=sessionIndex(); if (i>=0) sessions[i].key="";
+    server.sendHeader("Set-Cookie","bf_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");redirect("/login");
   });
-  server.on("/api/status", HTTP_GET,sendStatus);
-  server.on("/api/tx",HTTP_POST,[](){
-    if (!requireToken()) return;
-    if (safeMode || portal || !radioOK || armed() || txRunning) { server.send(409,"text/plain","Funk derzeit gesperrt"); return; }
-    StaticJsonDocument<128> d;
-    if (server.arg("plain").length()>128 || deserializeJson(d,server.arg("plain")) || !d["enabled"].is<bool>()) { server.send(400); return; }
-    txUntil=d["enabled"].as<bool>()?millis()+120000:0;
-    server.send(200,"application/json","{\"ok\":true}");
+  server.on("/",HTTP_GET,[](){
+    pageHeaders(); if (!adminAllowed()) { redirect("/login"); return; }
+    server.chunkedResponseModeStart(200,"text/html; charset=utf-8"); server.sendContent_P(DEVICE_HEAD);
+    server.sendContent("<meta name='bf-csrf' content='"+webNonce+"'>");
+    server.sendContent_P(DEVICE_APP); server.sendContent(keyPanel()); server.sendContent_P(DEVICE_SETTINGS);server.chunkedResponseFinalize();
   });
-  server.on("/api/light",HTTP_POST,[](){
-    if (!requireToken()) return;
-    if (!txEnabled() || safeMode || !radioOK || armed()) { server.send(409,"text/plain","Experimentelle Funkübertragung zuerst freigeben"); return; }
-    StaticJsonDocument<256> d;
-    if (server.arg("plain").length()>256 || deserializeJson(d,server.arg("plain"))) { server.send(400); return; }
-    for (const char* field:{"group","r","g","b","effect"}) if (!d[field].is<int>()) { server.send(400); return; }
-    int group=d["group"],r=d["r"],g=d["g"],b=d["b"],e=d["effect"];
-    if (group<1 || group>10 || r<0 || r>15 || g<0 || g>15 || b<0 || b>15 || e<0 || e>15) { server.send(400); return; }
-    groups[group-1].r=r; groups[group-1].g=g; groups[group-1].b=b; groups[group-1].effect=e;
-    server.send(200,"application/json","{\"ok\":true}");
+  server.on("/api/status",HTTP_GET,[](){ if (requireToken()) sendStatus(); });
+  server.on("/web/status",HTTP_GET,[](){pageHeaders();if (requireAdmin(true)) sendStatus();});
+  server.on("/api/tx",HTTP_POST,[](){handleTX(false);});
+  server.on("/web/tx",HTTP_POST,[](){handleTX(true);});
+  server.on("/api/light",HTTP_POST,[](){handleControl(false,true);});
+  server.on("/api/control",HTTP_POST,[](){handleControl(false);});
+  server.on("/web/control",HTTP_POST,[](){handleControl(true);});
+  server.on("/web/ota-close",HTTP_POST,[](){if(!requireWebWrite())return;otaUntil=0;server.send(200,"application/json","{\"ok\":true}");});
+  server.on("/web/password",HTTP_POST,[](){
+    if (!requireWebWrite()) return;
+    StaticJsonDocument<384> d;
+    if (server.arg("plain").length()>384 || deserializeJson(d,server.arg("plain")) || !d["current"].is<const char*>() || !d["password"].is<const char*>()) {server.send(400);return;}
+    if (adminHash(d["current"].as<String>())!=adminHA1) {server.send(403,"text/plain","Bisheriges Passwort ist falsch.");return;}
+    if (!validAdminPassword(d["password"])) {server.send(400,"text/plain","8 bis 64 druckbare ASCII-Zeichen verwenden.");return;}
+    String old=adminHA1;bool oldDefault=adminDefault;
+    adminHA1=adminHash(d["password"].as<String>());adminDefault=d["password"].as<String>()=="bandfunk2026";
+    if (!saveConfig()) {adminHA1=old;adminDefault=oldDefault;server.send(500,"text/plain","Passwort nicht gespeichert. Bitte erneut versuchen.");return;}
+    configDirty=false;configSaveError=false;for(auto& session:sessions)session.key="";
+    server.sendHeader("Set-Cookie","bf_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");server.send(200,"application/json","{\"ok\":true}");
   });
-  server.on("/update", HTTP_POST, []() {
-    if (!requireAdmin()) return;
-    if (!uploadOK) { server.send(400,"text/plain; charset=utf-8","Update abgelehnt: Freigabe, Signatur, Speicher oder Datei prüfen."); return; }
-    server.send(200,"text/plain; charset=utf-8","Signatur geprüft. Neustart folgt."); rebootAt=millis()+1500;
-  }, []() {
+  server.on("/update",HTTP_POST,[](){
+    if (!requireAdmin(true)) return;
+    if (!uploadOK) {server.send(400,"text/plain; charset=utf-8","Update abgelehnt: physische Freigabe, Anmeldung, Seitenschlüssel, Signatur oder Speicher prüfen.");return;}
+    server.send(200,"text/plain; charset=utf-8","Signatur geprüft. Neustart folgt.");rebootAt=millis()+1500;
+  },[](){
     HTTPUpload& u=server.upload();
     if (u.status==UPLOAD_FILE_START) {
-      uploadOK=false; uploadFailed=false;
-      uploadAllowed=armed() && !portal && server.authenticate("admin",token.c_str());
+      uploadOK=false;uploadFailed=false;uploadAllowed=armed() && !portal && adminAllowed() && validCSRF();
       if (!uploadAllowed) return;
-      detachInterrupt(digitalPinToInterrupt(DATA)); radioOK=false; strobe(0x36); // SIDLE
+      if (configDirty && !saveConfig()) {uploadAllowed=false;uploadFailed=true;return;}
+      configDirty=false; uploadBusy=true;timer1_disable();digitalWrite(DATA,LOW);txRunning=false;txDone=false;
+      detachInterrupt(digitalPinToInterrupt(DATA));strobe(0x36);radioOK=false;
       uint32_t space=(ESP.getFreeSketchSpace()-0x1000)&0xFFFFF000;
       if (!Update.begin(space,U_FLASH)) uploadFailed=true;
     } else if (u.status==UPLOAD_FILE_WRITE && uploadAllowed && !uploadFailed) {
-      if (Update.write(u.buf,u.currentSize)!=u.currentSize) uploadFailed=true;
+      if (Update.write(u.buf,u.currentSize)!=u.currentSize)uploadFailed=true;
     } else if (u.status==UPLOAD_FILE_END && uploadAllowed) {
-      if (!uploadFailed && Update.end(true)) { uploadOK=true; otaUntil=0; }
-      else { if (Update.isRunning()) Update.end(false); uploadFailed=true; }
-      uploadAllowed=false;
+      if (!uploadFailed && Update.end(true)) {uploadOK=true;otaUntil=0;}
+      else {if(Update.isRunning())Update.end(false);uploadFailed=true;restoreRadio=true;}
+      uploadAllowed=false;uploadBusy=false;
     } else if (u.status==UPLOAD_FILE_ABORTED) {
-      if (Update.isRunning()) Update.end(false);
-      uploadAllowed=false; uploadFailed=true;
+      if(Update.isRunning())Update.end(false);
+      restoreRadio=uploadBusy;uploadAllowed=false;uploadBusy=false;uploadFailed=true;
     }
     yield();
   });
-  server.onNotFound([](){ server.send(404,"text/plain","Nicht gefunden"); }); server.begin();
+  server.onNotFound([](){server.send(404,"text/plain","Nicht gefunden");});server.begin();
 }
 void startDeviceServices() {
   if (servicesStarted) return;
@@ -368,8 +444,15 @@ void startPortal() {
       if (!wifiManager.fromAP()) { wifiManager.deny(); return; }
       wifiManager.headers();
       String page="<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>BandFunk einrichten</title><h1>BandFunk HA " FW_VERSION "</h1><p>Passwort für das Einrichtungs-WLAN: bandfunk2026</p>";
-      page+=keyPanel(); page+="<p><a href='/wifi'>WLAN auswählen und verbinden</a></p><p><a href='/0wifi'>Verstecktes WLAN manuell eintragen</a></p><p>Nach dem Speichern wird die Verbindung geprüft. Bei Fehlern bitte wieder mit dem Einrichtungs-WLAN verbinden.</p></html>";
+      page+=keyPanel();page+="<form method='post' action='/admin-reset'><input type='hidden' name='nonce' value='"+provisionNonce+"'><button>Admin-Passwort auf bandfunk2026 zurücksetzen</button></form>"; page+="<p><a href='/wifi'>WLAN auswählen und verbinden</a></p><p><a href='/0wifi'>Verstecktes WLAN manuell eintragen</a></p><p>Nach dem Speichern wird die Verbindung geprüft. Bei Fehlern bitte wieder mit dem Einrichtungs-WLAN verbinden.</p></html>";
       wifiManager.server->send(200,"text/html; charset=utf-8",page);
+    });
+    wifiManager.server->on("/admin-reset",HTTP_POST,[](){
+      if(!wifiManager.checkSave(provisionNonce)) {wifiManager.deny();return;}
+      String old=adminHA1;bool oldDefault=adminDefault;adminHA1=adminHash("bandfunk2026");adminDefault=true;
+      if(!saveConfig()) {adminHA1=old;adminDefault=oldDefault;wifiManager.server->send(500,"text/plain","Speichern fehlgeschlagen");return;}
+      for(auto& session:sessions)session.key="";
+      wifiManager.server->send(200,"text/plain; charset=utf-8","Admin-Passwort ist wieder bandfunk2026. WLAN und HA-Schlüssel bleiben erhalten.");
     });
     wifiManager.server->on("/wifi",HTTP_ANY,[](){wifiManager.wifiPage(true);});
     wifiManager.server->on("/0wifi",HTTP_ANY,[](){wifiManager.wifiPage(false);});
@@ -404,10 +487,28 @@ void setup() {
   WiFi.persistent(false); WiFi.mode(WIFI_STA);
   deviceId=WiFi.macAddress(); deviceId.replace(":",""); deviceId.toLowerCase(); hostname="bandfunk-"+deviceId.substring(6);
   if (!LittleFS.begin()) { Serial.println("Dateisystemfehler: USB-Recovery erforderlich; keine automatische Formatierung."); return; }
+  bool migrated=false;
   File f=LittleFS.open("/config.json","r");
-  if (f) { StaticJsonDocument<512> doc; if (!deserializeJson(doc,f)) { token=doc["token"]|""; ssid=doc["ssid"]|""; password=doc["password"]|""; } f.close(); }
-  if (token.length()!=64) { token=randomHex(32); if (!saveConfig()) { Serial.println("Konfiguration nicht speicherbar"); return; } }
-  Serial.printf("BandFunk %s\nAPI-Schluessel: %s\n",FW_VERSION,token.c_str());
+  if (f) {
+    DynamicJsonDocument doc(3072);
+    if (!deserializeJson(doc,f)) {
+      token=doc["token"]|"";ssid=doc["ssid"]|"";password=doc["password"]|"";
+      adminHA1=doc["admin_ha1"]|"";adminDefault=doc["admin_default"]|true;
+      radioEnabled=doc["radio_enabled"]|true;
+      JsonArray list=doc["control"].as<JsonArray>();
+      if (list.size()==10) for(int i=0;i<10;++i) {
+        JsonArray a=list[i]; if(a.size()!=6)continue;
+        bool valid=a[5].is<bool>();for(int j=0;j<5;++j)valid=valid && a[j].is<int>() && a[j].as<int>()>=0 && a[j].as<int>()<=(j==4?15:255);
+        if(valid) {auto& c=controls[i];c.r=a[0];c.g=a[1];c.b=a[2];c.brightness=a[3];c.effect=a[4];c.on=a[5];}
+      }
+    }
+    f.close();
+  }
+  if(token.length()!=64) {token=randomHex(32);migrated=true;}
+  if(adminHA1.length()!=32) {adminHA1=adminHash("bandfunk2026");adminDefault=true;migrated=true;}
+  if(migrated && !saveConfig()) {Serial.println("Konfiguration nicht speicherbar");return;}
+  syncGroups();webNonce=randomHex(16);
+  Serial.printf("BandFunk %s\n",FW_VERSION);
   Update.installSignature(&otaHash,&otaVerify);
   WiFi.hostname(hostname); WiFi.setAutoReconnect(true);
   if (ssid.length() && !recovery) {
@@ -443,9 +544,13 @@ void loop() {
   }
   if (txDone || (txRunning && uint32_t(micros()-txWaveStarted)>150000)) finishTX();
   server.handleClient(); MDNS.update();
+  if(restoreRadio && !uploadBusy) {restoreRadio=false;if(!safeMode)radioOK=initRadio();}
   // At most one 82.4 ms packet per 1100 ms: bounded aggregate airtime.
   if (txEnabled() && millis()-lastTx>=1100) startTX();
   if (txRunning) { delay(1); return; }
+  if(configDirty && !uploadBusy && millis()-configChangedAt>=3000) {
+    configSaveError=!saveConfig();if(!configSaveError)configDirty=false;else configChangedAt=millis();
+  }
 #if BANDFUNK_EXTERNAL_D0_BUTTON
   if (digitalRead(BUTTON)==LOW) {
     if (!buttonSince) buttonSince=millis();
