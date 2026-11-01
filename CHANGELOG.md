@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.8 (HA-Integration)
+
+Lokales BandFunk-Symbol für Home Assistant ergänzt: `brand/icon.png` (256 px) und `brand/icon@2x.png` (512 px), transparent für helle und dunkle Oberflächen. Seit Home Assistant 2026.3 wird es direkt aus der installierten Custom-Integration geladen; kein externer Brands-PR erforderlich. Motiv aus dem freigegebenen BandFunk-Logo abgeleitet. Firmware bleibt 0.1.7; kein ESP-Update nötig.
+
 ## 0.1.7
 
 Bei einer Registerabweichung zeigt die Funkdiagnose die genaue CC1101-Adresse sowie Soll- und Istwert. 0.1.6 startete nach dem signierten OTA erfolgreich, meldete im Test aber eine Registerabweichung vor dem ersten Sendestart. Diese wird jetzt einzeln auswertbar. Noch keine bestätigte Funksteuerung an V5.

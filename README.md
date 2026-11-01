@@ -1,4 +1,4 @@
-# BandFunk HA · V0.1.7
+# BandFunk HA · Integration V0.1.8 / Firmware V0.1.7
 
 ![BandFunk – Armband mit Funkwellen](web/assets/bandfunk-logo-v1.png)
 
@@ -38,6 +38,10 @@ Der vorhandene **RESET-Taster** öffnet nach einem kurzen Druck ein fünfminüti
 **D8 / GPIO15 bleibt frei.** GPIO15 muss beim Reset LOW sein; CSN benötigt dagegen einen inaktiven HIGH-Pegel. Ein CSN-Pull-up an D8 kann den ESP-Start verhindern, ein Pulldown kann den CC1101 während des Bootens selektieren. Deshalb nutzt dieses Projekt D1. Auch D3/GPIO0 und D4/GPIO2 werden nicht für das Funkmodul benutzt.
 
 Die Zahlen beziehen sich auf die [offizielle EBYTE-TH-Tabelle](https://www.ebyte.com/product/58.html), nicht auf eine beliebige Internetzeichnung. SMA-Varianten können zusätzliche Massepins besitzen. Gehäuseansicht, Pin-1-Markierung und Modellzusatz mit der Zeichnung des tatsächlich gelieferten Moduls abgleichen. „E07-M1101D“ ohne Zusatz reicht nicht zur sicheren geometrischen Zuordnung. [LOLIN-Dokumentation](https://www.wemos.cc/en/latest/d1/d1_mini.html), [TI CC1101-Datenblatt](https://www.ti.com/lit/ds/symlink/cc1101.pdf).
+
+## Integrationslogo
+
+Das BandFunk-Symbol wird ab Home Assistant 2026.3 lokal aus `custom_components/bandfunk/brand/` geladen, auch auf dunklen Oberflächen. Für ältere HA-Versionen bleiben die Funktionen verfügbar, die lokale Logoanzeige ist dort jedoch nicht unterstützt. Nach einer HACS-Aktualisierung gegebenenfalls HA neu starten und den Browser neu laden. Kein Firmware-Flash für das Logo erforderlich.
 
 ## Installation
 
