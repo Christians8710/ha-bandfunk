@@ -42,14 +42,14 @@ def build(private, binary):
     public = serialization.load_pem_public_key((ROOT / "keys/ota-public.pem").read_bytes())
     signed = sign_image(data, key)
     verify_image(signed, public)
-    (out / "bandfunk-0.2.1.bin").write_bytes(data)
-    (out / "bandfunk-0.2.1.bin.signed").write_bytes(signed)
+    (out / "bandfunk-0.2.2.bin").write_bytes(data)
+    (out / "bandfunk-0.2.2.bin.signed").write_bytes(signed)
     files = [f for f in (ROOT / "custom_components/bandfunk").rglob("*") if f.is_file() and "__pycache__" not in f.parts]
     deterministic_zip(out / "bandfunk.zip", files, ROOT / "custom_components/bandfunk")
-    manifest = {"name": "BandFunk HA", "version": "0.2.1", "new_install_prompt_erase": True,
-        "builds": [{"chipFamily": "ESP8266", "parts": [{"path": "bandfunk-0.2.1.bin", "offset": 0}]}]}
+    manifest = {"name": "BandFunk HA", "version": "0.2.2", "new_install_prompt_erase": True,
+        "builds": [{"chipFamily": "ESP8266", "parts": [{"path": "bandfunk-0.2.2.bin", "offset": 0}]}]}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2)+"\n")
-    artifacts = [out/name for name in ("bandfunk-0.2.1.bin", "bandfunk-0.2.1.bin.signed", "bandfunk.zip", "manifest.json")]
+    artifacts = [out/name for name in ("bandfunk-0.2.2.bin", "bandfunk-0.2.2.bin.signed", "bandfunk.zip", "manifest.json")]
     (out / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}\n" for f in artifacts))
     print("Release-Artefakte einschließlich geprüfter OTA-Signatur erstellt")
 

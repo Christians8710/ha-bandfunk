@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.2.2
+
+Die Geräteoberfläche und der Web-Flasher zeigen nur die zur Bedienung nötigen Informationen. Persönliche Testberichte, allgemeine Hinweise und technische Erläuterungen sind aus den Steuerseiten entfernt; sie bleiben in der Dokumentation. Copyright und Lizenzzugang bleiben erhalten.
+
 ## 0.2.1
 
 Die Websteuerung wartet nicht mehr unbegrenzt auf eine Antwort: Aufrufe enden nach sechs Sekunden mit einer verständlichen Meldung und geben die Bedienung wieder frei. Schnelle Änderungen werden nacheinander übertragen; ausstehende Werte einer Gruppe werden auf den letzten gewünschten Wert zusammengeführt. Alte Statusabfragen können neuere Befehle nicht mehr überschreiben.

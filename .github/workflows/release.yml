@@ -26,4 +26,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.2.1 --draft --target "$GITHUB_SHA" --title 'BandFunk HA 0.1.4 â€“ experimenteller RGB-Treiber' --notes 'Hardwaretest der V5-ArmbÃ¤nder steht aus. Signierte OTA-Datei offline ergÃ¤nzen und SchlÃ¼ssel/PrÃ¼fsummen kontrollieren, dann bewusst verÃ¶ffentlichen.' bandfunk.zip firmware/.pio/build/d1_mini/firmware.bin
+          gh release create v0.2.2 --draft --target "$GITHUB_SHA" --title 'BandFunk 0.2.2' --notes 'Release-Entwurf. Signierte OTA-Datei offline ergänzen und Prüfsummen kontrollieren. Anleitung und Gerätetests stehen im Repository.' bandfunk.zip firmware/.pio/build/d1_mini/firmware.bin

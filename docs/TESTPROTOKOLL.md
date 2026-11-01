@@ -1,11 +1,27 @@
-# Hardware-Testprotokoll V0.1.0
+# Gerätetests und offene Prüfungen
 
-Stand: 1. November 2026. **Besitzer bestätigt inzwischen die Ansteuerung beider Gruppen 2 und 6 über HA. Einzelne Farben, Aus und sämtliche Effekte sind damit nicht vollständig dokumentiert.**
+Stand: 1. November 2026. **Meine beiden Armbänder der Gruppen 2 und 6 reagieren auf die Steuerung über HA. Ich habe noch nicht jeden Effekt und jede Farbe einzeln geprüft.**
+
+## Version 0.2.1
+
+Das signierte Update von 0.2.0 auf 0.2.1 wurde am angeschlossenen D1 mini installiert. Das Gerät blieb unter derselben Adresse und mit unverändertem HA-API-Schlüssel erreichbar, Funk und Konfiguration waren weiter aktiv.
+
+- Am Gerät geprüft: 0 % erzeugt Schwarz, 1 % (API-Wert 3) den kleinsten blauen Farbwert 1, 100 % den Wert 15. Das prüft den erzeugten Paketinhalt; die sichtbare Helligkeit am Armband ist noch zu vergleichen.
+- 24 schnelle Steuerbefehle an die unbenutzte Gruppe 10 beantwortet und jeweils direkt im vollständigen Antwortstatus bestätigt; danach ihren bisherigen Zustand wiederhergestellt. Gruppen 2 und 6 dabei nicht geändert.
+- Nach 249 Sekunden Laufzeit: 213 abgeschlossene Funkpakete, keine gemeldeten Funkfehler, 22.848 Byte freier Heap, größter freier Block 20.680 Byte, maximale HTTP-Bearbeitung 118 ms und größte beobachtete Schleifenpause 138 ms. Das ist eine kurze Stichprobe, kein Langzeittest.
+- Lokale Lizenzseite mit MIT-Text und Drittanbieterhinweisen sowie Lizenzverweis auf der Anmeldeseite erreichbar.
+- Lokale Python-/Browserlogiktests: 19 bestanden, HA-Tests dort übersprungen. GitHub CI mit echten HA-Klassen, nativen Protokolltests, HACS, hassfest, ESP-Build und Stackprüfung vollständig erfolgreich: Lauf 41343363888, Commit f193713.
+
+Die Änderungen vermeiden veraltete Statusanzeigen, hängen gebliebene Browseranfragen und sich überholende HA-Befehle. Ein gelegentliches längerfristiges Aussetzen ist damit noch nicht abschließend als behoben nachgewiesen. Die neuen Angaben zu Laufzeit, Neustartgrund, Heap und HTTP-Laufzeiten helfen bei der weiteren Eingrenzung.
+
+## Ursprüngliche Prüfliste 0.1.0 (historisch)
+
+Die folgende Liste beschreibt den früheren Stand. Das damalige Zwei-Minuten-Limit wurde seit 0.2.0 durch einen dauerhaften Hauptschalter ersetzt; spätere Ergebnisse stehen in den jeweiligen Abschnitten.
 
 | Armband | Sichtbare Platine | Gehäusegruppe | Protokoll bestätigt |
 |---|---|---|---|
-| Band 1 | 23A033V5 | 6 | Basissteuerung vom Besitzer bestätigt |
-| Band 2 | 23A033V5 | 2 | Basissteuerung vom Besitzer bestätigt |
+| Band 1 | 23A033V5 | 6 | Basissteuerung in meinem Aufbau bestätigt |
+| Band 2 | 23A033V5 | 2 | Basissteuerung in meinem Aufbau bestätigt |
 
 Datum, Tester, ESP-Modell/Flashgröße, E07-Modellzusatz, Verdrahtung, Antenne, Versorgung und Firmware-SHA256 dokumentieren. Private WLAN-/API-Daten nicht eintragen.
 
