@@ -13,6 +13,7 @@ extern "C" {
 #include "ota_key.h"
 #include "protocol.h"
 #include "crowdsync.h"
+#include "radio_tx.h"
 #include "wifi_portal.h"
 #include "provision_guard.h"
 
@@ -46,13 +47,25 @@ volatile uint32_t durations[256];
 volatile uint8_t levels[256];
 GroupColor groups[10];
 uint32_t txUntil=0, lastTx=0, txPackets=0;
+uint32_t txAttempts=0, txCompleted=0, txErrors=0, txWaveStarted=0, txDuration=0;
+TxCheck txCheck;
+volatile uint32_t txLastEdgeUs=0, txWaveEndUs=0, txLateEdges=0, txMaxLateness=0;
 volatile bool txRunning=false, txDone=false;
 volatile uint16_t waveIndex=0;
 uint16_t wave[358];
 bool txEnabled() { return txUntil && int32_t(txUntil-millis())>0; }
 void IRAM_ATTR txTimer() {
+  uint32_t now=micros();
+  uint32_t elapsed=now-txLastEdgeUs;
+  uint32_t expected=wave[waveIndex];
+  if (elapsed>expected) {
+    uint32_t late=elapsed-expected;
+    if (late>txMaxLateness) txMaxLateness=late;
+    if (late>40) ++txLateEdges;
+  }
+  txLastEdgeUs=now;
   uint16_t i=++waveIndex;
-  if (i>=358) { digitalWrite(DATA,LOW); txRunning=false; txDone=true; return; }
+  if (i>=358) { digitalWrite(DATA,LOW); txWaveEndUs=now; txRunning=false; txDone=true; return; }
   digitalWrite(DATA,(i&1)?LOW:HIGH);
   timer1_write(uint32_t(wave[i])*5);
 }
@@ -103,6 +116,33 @@ bool strobe(uint8_t command) {
   if (!selectRadio()) return false;
   SPI.transfer(command); digitalWrite(CS,HIGH); return true;
 }
+struct RadioTXAccess {
+  void holdLow() { digitalWrite(DATA,LOW); pinMode(DATA,OUTPUT); }
+  bool strobe(uint8_t command) { return ::strobe(command); }
+  bool write(uint8_t address,uint8_t value) { return regWrite(address,value); }
+  uint8_t read(uint8_t address) { return regRead(address); }
+  bool writePA(uint8_t off,uint8_t on) {
+    if (!selectRadio()) return false;
+    SPI.transfer(0x7E); SPI.transfer(off); SPI.transfer(on); digitalWrite(CS,HIGH); return true;
+  }
+  bool readPA(uint8_t& off,uint8_t& on) {
+    if (!selectRadio()) return false;
+    SPI.transfer(0xFE); off=SPI.transfer(0); on=SPI.transfer(0); digitalWrite(CS,HIGH); return true;
+  }
+  bool waitState(uint8_t wanted,uint8_t& observed) {
+    uint32_t start=micros(); uint8_t previous=0xFF;
+    do {
+      uint8_t current=regRead(0x35);
+      // SWRZ020E: require consecutive matching reads of changing status.
+      if (current==previous && current!=0xFF) {
+        observed=current&0x1F;
+        if (observed==wanted) return true;
+      }
+      previous=current; delayMicroseconds(20);
+    } while (micros()-start<10000);
+    return false;
+  }
+};
 void IRAM_ATTR onEdge() {
   uint32_t now = micros(); uint32_t dt = now - lastEdge; lastEdge = now;
   ++edgeCount;
@@ -121,7 +161,7 @@ bool initRadio() {
   // CC1101 26 MHz reference: 433.92 MHz, async OOK, RX only.
   const uint8_t config[][2] = {
     {0x00,0x2E},{0x02,0x0D},{0x03,0x47},{0x06,0xFF},{0x07,0x04},{0x08,0x32},
-    {0x0B,0x06},{0x0D,0x10},{0x0E,0xB0},{0x0F,0x71},
+    {0x0A,0x00},{0x0B,0x06},{0x0C,0x00},{0x0D,0x10},{0x0E,0xB0},{0x0F,0x71},
     {0x10,0x67},{0x11,0x32},{0x12,0x30},{0x13,0x22},{0x14,0xF8},
     {0x15,0x00},{0x17,0x00},{0x18,0x18},{0x19,0x16},{0x1B,0x43},{0x1C,0x40},{0x1D,0x91},
     {0x21,0x56},{0x22,0x10},{0x23,0xE9},{0x24,0x2A},{0x25,0x00},{0x26,0x1F},
@@ -131,26 +171,47 @@ bool initRadio() {
   attachInterrupt(digitalPinToInterrupt(DATA),onEdge,CHANGE); return true;
 }
 void finishTX() {
-  timer1_disable(); strobe(0x36); pinMode(DATA,INPUT); regWrite(0x02,0x0D);
-  strobe(0x34); attachInterrupt(digitalPinToInterrupt(DATA),onEdge,CHANGE); txDone=false;
+  timer1_disable();
+  bool completed=txDone && waveIndex==358;
+  digitalWrite(DATA,LOW);
+  // The state check precedes SIDLE and must not disturb the timed waveform.
+  RadioTXAccess radio; uint8_t state=0xFF;
+  bool stillTX=radio.waitState(0x13,state);
+  if (completed && stillTX) {
+    ++txCompleted; txDuration=txWaveEndUs-txWaveStarted;
+  } else {
+    ++txErrors; txUntil=0;
+    txCheck.error=completed?"CC1101 hat TX vorzeitig verlassen":"Impulsfolge hat Zeitlimit erreicht";
+  }
+  txRunning=false;
+  bool idle=strobe(0x36) && radio.waitState(0x01,state);
+  if (idle) pinMode(DATA,INPUT);
+  if (!idle || !regWrite(0x02,0x0D) || !strobe(0x34)) {
+    radioOK=false; txUntil=0; txCheck.error="Rueckkehr in Empfang fehlgeschlagen";
+  } else {
+    attachInterrupt(digitalPinToInterrupt(DATA),onEdge,CHANGE);
+  }
+  txDone=false;
 }
 void startTX() {
   if (!radioOK || safeMode || portal || armed() || txRunning || txDone) return;
   uint8_t packet[22]; buildPacket(groups,packet); buildWave(packet,wave);
   detachInterrupt(digitalPinToInterrupt(DATA));
-  strobe(0x36); regWrite(0x02,0x2E); regWrite(0x22,0x11);
-  if (!selectRadio()) { radioOK=false; txUntil=0; return; }
-  SPI.transfer(0x7E); SPI.transfer(0); SPI.transfer(0x34); digitalWrite(CS,HIGH);
-  pinMode(DATA,OUTPUT); digitalWrite(DATA,LOW);
-  if (!strobe(0x35)) { pinMode(DATA,INPUT); radioOK=false; txUntil=0; return; }
-  delayMicroseconds(800);
-  waveIndex=0; txRunning=true; digitalWrite(DATA,HIGH);
+  ++txAttempts;
+  RadioTXAccess radio;
+  // Release the receiver output before the ESP drives this shared pin.
+  if (!prepareRadioTX(radio,txCheck)) {
+    ++txErrors; txUntil=0; radioOK=false;
+    strobe(0x36); pinMode(DATA,INPUT); return;
+  }
+  waveIndex=0; txRunning=true; txWaveEndUs=0;
+  txWaveStarted=micros(); txLastEdgeUs=txWaveStarted; digitalWrite(DATA,HIGH);
   timer1_enable(TIM_DIV16,TIM_EDGE,TIM_SINGLE); timer1_write(uint32_t(wave[0])*5);
   ++txPackets; lastTx=millis();
 }
 void sendStatus() {
   if (!requireToken()) return;
-  StaticJsonDocument<2048> doc;
+  StaticJsonDocument<3072> doc;
   doc["api"]=1; doc["id"]=deviceId; doc["version"]=FW_VERSION;
   doc["protocol"]=decoder.name(); doc["rssi"]=WiFi.RSSI();
   doc["uptime"]=millis()/1000; doc["free_heap"]=ESP.getFreeHeap();
@@ -158,12 +219,17 @@ void sendStatus() {
   doc["edges"]=edgeCount; doc["dropped"]=dropped;
   doc["protocol"]="crowdsync_rf_experimentell";
   doc["tx_enabled"]=txEnabled(); doc["tx_packets"]=txPackets;
+  doc["tx_attempts"]=txAttempts; doc["tx_completed"]=txCompleted; doc["tx_errors"]=txErrors;
+  doc["tx_config_verified"]=txCheck.configVerified;
+  doc["tx_idle_state"]=txCheck.idleState; doc["tx_chip_state"]=txCheck.txState;
+  doc["tx_fscal1"]=txCheck.calibration; doc["tx_error"]=txCheck.error;
+  doc["tx_wave_us"]=txDuration; doc["tx_late_edges"]=txLateEdges; doc["tx_max_late_us"]=txMaxLateness;
   JsonArray list=doc.createNestedArray("groups");
   for (const auto& g:groups) { JsonArray a=list.createNestedArray(); a.add(g.r); a.add(g.g); a.add(g.b); a.add(g.effect); }
   String body; serializeJson(doc,body); server.send(200,"application/json",body);
 }
 const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BandFunk HA</title>
-<h1>BandFunk HA 0.1.4</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
+<h1>BandFunk HA 0.1.5</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
 <p>OTA: Den vorhandenen RESET-Taster kurz drücken. Danach ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen. Für RGB-Tests das OTA-Fenster schließen.</p>
 <form method="post" action="/ota/close"><button>OTA-Fenster schließen und Funk freigeben</button></form>
 <form method="post" action="/update" enctype="multipart/form-data"><label>Signierte Firmware <input type="file" name="firmware" required></label><button>Firmware installieren</button></form>
@@ -184,7 +250,13 @@ void setupRoutes() {
     server.sendHeader("X-Frame-Options","DENY");
     server.sendHeader("Referrer-Policy","no-referrer");
     if (!requireAdmin()) return;
-    String page=FPSTR(PAGE); page+=keyPanel(); page+="</html>";
+    String page=FPSTR(PAGE);
+    page+="<section><h2>Funkdiagnose</h2><p>Startversuche: "+String(txAttempts)+
+      "; Chip-Sendestatus bestaetigt: "+String(txPackets)+"; vollstaendige Impulsfolgen: "+String(txCompleted)+
+      "; Fehler: "+String(txErrors)+".</p><p>Letzter Hinweis: "+String(txCheck.error[0]?txCheck.error:"Kein Fehler erkannt")+
+      ".</p><p>Letzte Impulsfolge: "+String(txDuration)+" Mikrosekunden; groesste Impulsverspaetung: "+String(txMaxLateness)+
+      " Mikrosekunden.</p><p>Chip-Zustaende und Impulszaehler bestaetigen weder die abgestrahlte Funkleistung noch den Empfang am Armband. Seite fuer neue Werte neu laden.</p></section>";
+    page+=keyPanel(); page+="</html>";
     server.send(200,"text/html; charset=utf-8",page);
   });
   server.on("/api/status", HTTP_GET,sendStatus);
@@ -362,7 +434,7 @@ void loop() {
     }
     delay(1); return;
   }
-  if (txDone) finishTX();
+  if (txDone || (txRunning && uint32_t(micros()-txWaveStarted)>150000)) finishTX();
   server.handleClient(); MDNS.update();
   // At most one 82.4 ms packet per 1100 ms: bounded aggregate airtime.
   if (txEnabled() && millis()-lastTx>=1100) startTX();

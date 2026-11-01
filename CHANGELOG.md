@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.1.5
+
+Funkdiagnose: kritische CC1101-Register und OOK-Leistungstabelle werden vor jedem Paket zurückgelesen. Senden startet erst nach bestätigtem TX-Zustand und geprüfter PLL-Kalibrierung statt nach einer festen 800-µs-Wartezeit. SPI-Fehler, ausbleibender Sendestatus und abgebrochene Impulsfolgen stoppen den Test. Zähler unterscheiden Versuche, Chip-TX-Starts und vollständig ausgegebene Impulsfolgen. Geräte-Webseite und HA-Diagnosedownload zeigen die Messwerte. Timer-Zeitlimit und interne Impulsverspätungsstatistik ergänzt; native Fehlerpfadtests.
+
+Das ist keine Empfangsbestätigung und kein Nachweis der abgestrahlten Leistung. V5-Armbänder bleiben unbestätigt; der Rot-Test mit 0.1.4 blieb auch nach Batterie-Neueinsetzen ohne Reaktion. Das Wristbanditø-Dokument zeigt ebenfalls V5-Hardware, enthält aber keinen entschlüsselten Funkbefehl.
+
 ## 0.1.4
 
 WLAN-Einrichtung auf tzapu/WiFiManager 2.0.17 umgestellt: geprüfter Verbindungsversuch, Statusanzeige mit Geräte-IP, erneute Eingabe bei Fehlern und AP-Abschaltung nach bestätigtem Erfolg. Deutsche Templates und API-Schlüssel-Anzeige bleiben erhalten. Onboard-RESET statt unbeschaltetem GPIO16/D0 als physische OTA-Freigabe; zusätzlicher D0-Taster ist opt-in. Bibliotheks-OTA und administrative Nebenwege sind gesperrt.

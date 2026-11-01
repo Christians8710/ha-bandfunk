@@ -1,4 +1,4 @@
-# BandFunk HA · V0.1.4
+# BandFunk HA · V0.1.5
 
 ![BandFunk – Armband mit Funkwellen](web/assets/bandfunk-logo-v1.png)
 
@@ -44,7 +44,7 @@ Die Zahlen beziehen sich auf die [offizielle EBYTE-TH-Tabelle](https://www.ebyte
 1. In HACS → Menü → Benutzerdefinierte Repositories: `https://github.com/Christians8710/ha-bandfunk`, Typ **Integration** hinzufügen.
 2. **BandFunk HA** herunterladen, Home Assistant neu starten.
 3. [HTTPS-Web-Flasher](https://Christians8710.github.io/ha-bandfunk/) am PC mit dem angeschlossenen ESP öffnen. Desktop-Chrome oder Edge mit Web Serial verwenden. Zugriff erfolgt auf den COM-Port **dieses PCs**, nicht auf den HA-Server. Eventuell CH340-Treiber und ein echtes USB-Datenkabel erforderlich.
-4. Einmalig `bandfunk-0.1.4.bin` flashen. Mit dem Einrichtungs-WLAN `bandfunk-…` und Passwort `bandfunk2026` verbinden. In Chrome `http://192.168.4.1` öffnen: Dort steht der persönliche API-Schlüssel mit Kopierknopf. Vor dem Speichern der WLAN-Daten privat sichern. Der API-Schlüssel wird pro Gerät erzeugt; das Einrichtungs-WLAN-Passwort ist bewusst fest vorgegeben.
+4. Einmalig `bandfunk-0.1.5.bin` flashen. Mit dem Einrichtungs-WLAN `bandfunk-…` und Passwort `bandfunk2026` verbinden. In Chrome `http://192.168.4.1` öffnen: Dort steht der persönliche API-Schlüssel mit Kopierknopf. Vor dem Speichern der WLAN-Daten privat sichern. Der API-Schlüssel wird pro Gerät erzeugt; das Einrichtungs-WLAN-Passwort ist bewusst fest vorgegeben.
 5. Mit `bandfunk-…` verbinden, `http://192.168.4.1` öffnen, WLAN aus der Liste auswählen und Passwort eingeben. Die Suche zeigt 2,4-GHz-Netze am Standort des ESP; über „Neu suchen“ aktualisieren. Versteckte SSIDs können manuell eingegeben werden. **Speichern und verbinden** wählen und bis zu 30 Sekunden auf die bestätigte Verbindung und neue Geräte-IP warten. Der AP bleibt nach Erfolg noch 30 Sekunden für die Anzeige offen. Bei falschem Passwort bleibt er für einen weiteren Versuch erreichbar. Anschließend wieder mit dem Heim-WLAN verbinden und die angezeigte Geräte-IP öffnen. Die Einrichtung verwendet [WiFiManager 2.0.17](https://github.com/tzapu/WiFiManager/tree/v2.0.17), mit deutschen Templates, Captive DNS und manueller SSID-Eingabe. Wenn beim Start keine Verbindung gelingt, startet ein auf zehn Minuten begrenzter Einrichtungs-AP.
 6. HA → Einstellungen → Geräte & Dienste → Integration hinzufügen → **BandFunk HA**. Host und API-Schlüssel eingeben oder mDNS-Fund auswählen. Der Schlüssel bleibt später auch auf der lokalen Geräte-Webseite sichtbar: Anmeldung als `admin`, Passwort ist der API-Schlüssel. Diese Anzeige funktioniert in Chrome und bleibt vor anonymem Zugriff aus dem Heimnetz geschützt. Discovery benötigt ein gemeinsames Multicast-Netz; andernfalls IP manuell eintragen. DHCP-Reservierung empfohlen.
 
@@ -94,6 +94,6 @@ Das Repository enthält bereits den öffentlichen Projektschlüssel: `keys/ota-p
 
 HA bietet WLAN-RSSI, Laufzeit, freien RAM, Firmware, Flanken-/Verlustzähler, Funkmodul-, Recovery- und OTA-Status. Diagnoseexport benutzt eine feste Freigabeliste ohne API-Schlüssel, IP, MAC, SSID oder WLAN-Passwort. Der API-Schlüssel wird in HA wie andere Integrationseinstellungen gespeichert: HA-Backups schützen.
 
-Der Empfangsring ist auf 255 Flanken begrenzt und wird im Hauptprogramm geleert. Die V0.1.4 zählt Flanken, ist aber kein vollständiger Mitschnitt- oder OOK-Decoder. Für genaue Zeitmessung Logic Analyzer oder SDR verwenden. `ProtocolDecoder` bildet den Einstieg für spätere Empfängerdecoder; `crowdsync.h` kapselt Paket- und Wellenformerzeugung des experimentellen Sendetreibers. Es gibt keinen frei zugänglichen Rohsender-Endpunkt.
+Der Empfangsring ist auf 255 Flanken begrenzt und wird im Hauptprogramm geleert. Die V0.1.5 zählt Flanken, ist aber kein vollständiger Mitschnitt- oder OOK-Decoder. Für genaue Zeitmessung Logic Analyzer oder SDR verwenden. `ProtocolDecoder` bildet den Einstieg für spätere Empfängerdecoder; `crowdsync.h` kapselt Paket- und Wellenformerzeugung des experimentellen Sendetreibers. Es gibt keinen frei zugänglichen Rohsender-Endpunkt.
 
 Die Funkstrecke ist unidirektional: keine tatsächliche Farbrückmeldung. Gruppen-Schalterzustand bedeutet Sollwert, Funkfreigabe bedeutet Testfenster. Random-/Blinkeffekte und Energiesparen hängen vom Armbandmodell ab. Nach dem Test immer Schwarz senden; bloßes Senderabschalten garantiert keine dunklen LEDs.

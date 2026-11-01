@@ -6,6 +6,8 @@ import pytest
 pytest.importorskip("homeassistant")
 from custom_components.bandfunk.config_flow import ConfigFlow
 from custom_components.bandfunk.api import InvalidAuth, CannotConnect
+from custom_components.bandfunk.diagnostics import async_get_config_entry_diagnostics
+from types import SimpleNamespace
 
 
 def run_flow(api_result=None, error=None):
@@ -41,3 +43,16 @@ def test_discovery_rejects_untrusted_id():
     flow.hass=MagicMock()
     result=asyncio.run(flow.async_step_zeroconf(MagicMock(host="esp.local",properties={"id":"invalid"})))
     assert result["reason"] == "invalid_discovery"
+
+
+@pytest.mark.parametrize("extra", [{}, {"tx_attempts":3,"tx_packets":2,"tx_completed":1,
+    "tx_errors":1,"tx_chip_state":19,"tx_error":"CC1101 erreicht TX nicht"}])
+def test_diagnostics_allowlist_with_old_and_new_firmware(extra):
+    data={"api":1,"version":"0.1.5","token":"private-token","ssid":"private-network",
+          "password":"private-password","id":"aabbcc112233","host":"private-host",
+          "ip":"192.0.2.1",**extra}
+    coordinator=SimpleNamespace(data=data,last_update_success=True)
+    hass=SimpleNamespace(data={"bandfunk":{"entry":coordinator}})
+    result=asyncio.run(async_get_config_entry_diagnostics(hass,SimpleNamespace(entry_id="entry")))
+    assert result["available"] is True
+    assert result["status"] == {"api":1,"version":"0.1.5",**extra}
