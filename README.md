@@ -1,5 +1,7 @@
 # BandFunk HA · V0.1.3
 
+![BandFunk – Armband mit Funkwellen](web/assets/bandfunk-logo-v1.png)
+
 Deutsche HACS-Custom-Integration und ESP8266-Firmware für Wemos/LOLIN D1 mini (4 MB) mit EBYTE E07-M1101D-TH bzw. passendem SMA-Modul, CC1101 bei 433,92 MHz.
 
 **Experimentelle RGB-Steuerung ist implementiert, aber noch nicht an den Armbändern des Besitzers bestätigt.** Grundlage ist die öffentlich dokumentierte und dort funkgetestete Variante von [James Wang / CrowdSync_RF](https://github.com/jamesw343/CrowdSync_RF/tree/b800899687224011657e4ac62caaf45d54892f6d). Diese Referenz betrifft `23A033V7_2`, Gruppe 6. Die vorliegenden Armbänder sind `23A033V5`: Band 1 trägt Gruppe 6, Band 2 Gruppe 2. Fotos belegen die Kennzeichnungen, nicht die Protokollkompatibilität. Keine Hersteller-Firmware oder privaten Bilder sind Bestandteil dieses Repositories.
