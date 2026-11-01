@@ -44,7 +44,14 @@ Home Assistant erreicht den ESP; CC1101 wird erkannt. Funkfreigabe aktiv, Recove
 - `tx_late_edges` zählt interne Intervallverspätungen über 40 µs seit Neustart; `tx_max_late_us` zeigt das Maximum. Interne Timerwerte ersetzen keine Messung am GDO0 oder Antennenanschluss.
 - Nach OTA bisherige WLAN-/API-Daten prüfen; HA 0.1.4 kann die zusätzlichen API-1-Felder weiterhin lesen.
 
-## Ergänzende Hardwarequelle
+## Gerätetest 0.1.5 bis 0.1.7
+
+- 0.1.5: Signiertes OTA akzeptiert; danach zwei `Exception (2)` im seriellen Startprotokoll. Automatisierte Softwaretests hatten diesen Gerätefehler nicht erkannt. Version zurückgezogen und Installationsknopf deaktiviert.
+- 0.1.6: Status-JSON vom ESP-Stack auf Heap verlegt. Signiertes OTA erfolgreich, normale WLAN-Verbindung und bestehender API-Schlüssel bestätigt. Build prüft jetzt den realen Stackrahmen von `sendStatus` (lokal 128 Byte, maximal 1024). Beim Sendetest Registerabweichung vor erster bestätigter TX-Aktivierung erkannt.
+- 0.1.7: Signiertes OTA erfolgreich. 20 API-Abfragen ohne beobachteten Neustart; dabei Betriebszeit 82 s. Diagnose: `tx_attempts=1`, `tx_packets=0`, `tx_completed=0`, `tx_errors=1`, IDLE bestätigt (`1`), erste Registerabweichung bei Adresse `2` (`IOCFG0`): Soll `46` (`0x2E`), Ist `15` (`0x0F`). Funkfreigabe wird geschlossen. Ergebnis ist ein nicht passender SPI-Rücklesewert, noch kein Beweis einer bestimmten Hardwareursache und kein Protokolltest über Funk.
+- Home-Assistant-Eintrag während der Reparatur vorübergehend deaktiviert und anschließend wieder aktiviert. Integration bleibt API-1-kompatibel.
+
+### Ergänzende Hardwarequelle
 
 [Wristbanditø-Dokument](https://docs.google.com/document/d/1kwlhJLc4ZCnrCcFRf51oEpflG-rDBOV7JPWpBCfqqds/edit), verlinkt im [Reddit-Originalbeitrag](https://www.reddit.com/r/twentyonepilots/comments/1nmtt2q/wristbandit%C3%B8_reverse_engineering_the_twenty_one/), abgerufen am 1. November 2026: Foto zeigt ebenfalls `23A033V5`, Gruppe 2. Autor beschreibt CMT2210LH, 27,1412-MHz-Quarz, 3,3-V-LDO und parallele RGB-LEDs. Der Text erklärt das Funkformat ausdrücklich für unbekannt; MCU-Typ nur vermutet. Keine zusätzliche Paketdefinition, kein fertiger Sender und keine V5-Protokollbestätigung daraus ableiten. Fremde Fotos/Schaltpläne wurden nicht ins Projekt kopiert.
 
