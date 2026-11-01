@@ -6,7 +6,7 @@
 
 ## Hardwarestand
 
-Die vorliegenden Armbänder tragen die Platinenkennung `23A033V5`: Band 1 hat die aufgedruckte Gruppe **6**, Band 2 die **2**. Der Besitzer bestätigt, dass beide Gruppen 2 und 6 auf HA-Steuerung reagieren. Das bestätigt weder sämtliche Effekte noch jede V5-Variante. Sollwerte in Web/HA sind keine Empfangsbestätigung.
+Meine beiden Armbänder tragen die Platinenkennung `23A033V5`. Auf dem einen steht die **6**, auf dem anderen die **2**. Beide reagieren auf die Steuerung über Home Assistant. Ich habe noch nicht jeden Effekt einzeln getestet und kann bisher nur für meinen Aufbau sprechen. Die Anzeige in der Webseite und in HA zeigt den eingestellten Wert – eine Rückmeldung vom Armband gibt es nicht.
 
 Paketformat und Zeiten sind aus der MIT-lizenzierten, unabhängig untersuchten [CrowdSync_RF-Referenz](https://github.com/jamesw343/CrowdSync_RF/tree/b800899687224011657e4ac62caaf45d54892f6d) umgesetzt. Diese Referenz betrifft eine V7_2-Platine. Keine Hersteller-Firmware oder fremden Platinenfotos werden verteilt. BandFunk ist ein unabhängiges Projekt ohne Verbindung zum CrowdSync-Hersteller oder zum Home-Assistant-Projekt.
 

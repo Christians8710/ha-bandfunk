@@ -10,7 +10,7 @@ Signiertes OTA weiterhin nur im fünfminütigen Fenster nach physischem RESET. D
 
 HA erhält gespeicherte Farbe/Helligkeit/Ein-Aus separat und gleicht Änderungen der Weboberfläche alle fünf Sekunden ab. Bestehende Entitäts-IDs bleiben erhalten; ältere API-1-Firmware bleibt unterstützt. API-1-Bearer-Endpunkte um typgeprüfte Steuerdaten erweitert; browserbasierte Administration kann nicht mit dem HA-API-Schlüssel übernommen werden.
 
-Hardwarestand: Besitzer bestätigt, dass beide Bänder mit aufgedruckter Gruppe 2 und 6 über HA reagieren. Das ist keine Bestätigung aller Effekte oder aller V5-Geräte.
+Meine beiden Armbänder mit den Gruppen 2 und 6 reagieren auf die HA-Steuerung. Noch nicht jeden Effekt habe ich einzeln getestet; andere V5-Geräte sind damit nicht automatisch mitgeprüft.
 
 ## 0.1.8 (HA-Integration)
 
