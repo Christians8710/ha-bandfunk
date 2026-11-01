@@ -58,9 +58,10 @@ class BandFunkLight(BandFunkEntity, LightEntity):
 
     async def _send_control(self, rgb, brightness, effect, on):
         try:
-            await self.coordinator.api.command("control", {"group":self.group+1,
+            result=await self.coordinator.api.command("control", {"group":self.group+1,
                 "r":rgb[0],"g":rgb[1],"b":rgb[2],"brightness":brightness,"effect":effect,"on":on})
-            await self.coordinator.async_request_refresh()
+            if isinstance(result,dict): self.coordinator.accept_command(result)
+            else: await self.coordinator.async_request_refresh()
         except (CannotConnect,InvalidAuth) as err:
             raise HomeAssistantError("Sollwert konnte nicht gespeichert werden; Geräteverbindung prüfen") from err
 
@@ -73,6 +74,10 @@ class BandFunkLight(BandFunkEntity, LightEntity):
             raise HomeAssistantError("Befehl abgelehnt. Experimentelle Funkübertragung aktivieren; keine Empfangsbestätigung möglich.") from err
 
     async def async_turn_on(self, **kwargs):
+        async with self.coordinator.command_lock:
+            await self._turn_on(**kwargs)
+
+    async def _turn_on(self, **kwargs):
         if self.control is not None:
             await self._send_control(kwargs.get("rgb_color",self.rgb_color),
                 kwargs.get("brightness",self.brightness or 255),
@@ -85,6 +90,10 @@ class BandFunkLight(BandFunkEntity, LightEntity):
         await self._send(rgb, effect)
 
     async def async_turn_off(self, **kwargs):
+        async with self.coordinator.command_lock:
+            await self._turn_off(**kwargs)
+
+    async def _turn_off(self, **kwargs):
         if self.control is not None:
             await self._send_control(self.rgb_color,self.brightness,EFFECTS.index(self.effect),False)
             return

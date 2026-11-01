@@ -1,5 +1,6 @@
 """Small local API client. Never logs credentials or follows redirects."""
 import asyncio
+import json
 import re
 from urllib.parse import urlsplit
 
@@ -96,5 +97,15 @@ class BandFunkAPI:
                     raise InvalidAuth
                 if response.status != 200:
                     raise CannotConnect("Befehl abgelehnt; Funkfreigabe und Gerätestatus prüfen")
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+                raw=bytearray()
+                async for chunk in response.content.iter_chunked(1024):
+                    raw.extend(chunk)
+                    if len(raw)>8192: raise CannotConnect("Antwort zu groß")
+                data=json.loads(raw)
+                if isinstance(data,dict) and data.get("api")==1:
+                    return validate_status(data)
+                if isinstance(data,dict) and data.get("ok") is True:
+                    return None
+                raise CannotConnect("Ungültige Befehlsantwort")
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError) as err:
             raise CannotConnect from err

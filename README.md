@@ -1,4 +1,4 @@
-# BandFunk · V0.2.0
+# BandFunk · V0.2.1
 
 ![BandFunk](web/assets/bandfunk-logo-v1.png)
 
@@ -32,7 +32,7 @@ Pinnummern und Modellansicht mit den [EBYTE-Unterlagen](https://www.ebyte.com/pr
 ## Einmalig installieren
 
 1. [HTTPS-Web-Flasher](https://christians8710.github.io/ha-bandfunk/) auf dem PC mit dem angeschlossenen ESP in Desktop-Chrome oder Edge öffnen. Der COM-Port gehört zu diesem PC, nicht zu einem HA-Server.
-2. Version **0.2.0** per USB installieren. Ein vollständiges Löschen entfernt vorhandene WLAN-/API-Daten; bei bereits eingerichtetem Gerät stattdessen signiertes OTA verwenden.
+2. Version **0.2.1** per USB installieren. Ein vollständiges Löschen entfernt vorhandene WLAN-/API-Daten; bei bereits eingerichtetem Gerät stattdessen signiertes OTA verwenden.
 3. Mit dem Einrichtungs-WLAN `bandfunk-…` verbinden, WLAN-Passwort **bandfunk2026**. In Chrome `http://192.168.4.1` öffnen.
 4. Heim-WLAN aus der Liste auswählen und dessen Passwort eingeben. WiFiManager 2.0.17 prüft die Verbindung und zeigt bei Erfolg die neue IP. Bis zu 30 Sekunden warten. Bei Fehlern bleibt das Portal für einen weiteren Versuch offen. Nach Erfolg ist der AP noch 30 Sekunden sichtbar; insgesamt maximal zehn Minuten.
 5. Wieder mit dem Heimnetz verbinden und die angezeigte IP oder `http://bandfunk-GERAETEKENNUNG.local/` öffnen. Anmeldung: **admin / bandfunk2026**. Danach kann das Admin-Passwort auf der Webseite geändert werden.
@@ -48,6 +48,10 @@ Die Geräteoberfläche samt Logo funktioniert lokal ohne CDN oder Home Assistant
 - Bei ausgeschaltetem Hauptschalter werden Sollwerte weiter gespeichert, aber nicht gefunkt. Ausschalten der Funkfreigabe ist kein LED-Aus-Befehl: zuerst die gewünschte Gruppe ausschalten und die Übertragung einige Sekunden laufen lassen.
 
 Die Funkfreigabe hat **kein Zwei-Minuten-Limit** mehr. Wiederholte Pakete starten weiterhin höchstens alle 1100 ms, bei niedriger PA-Einstellung (TI-Nennwert ungefähr −10 dBm bei 433 MHz). Es entsteht kein ununterbrochener Funkträger. Ein Paket dauert nominal 82,4 ms; die zuletzt gemessene ESP-Impulsfolge lag bei etwa 84,3 ms. Reale Leistung/Spektrum sind noch nicht extern gemessen. Nur im örtlich zulässigen Funkrahmen einsetzen.
+
+Ab 0.2.1 beginnt 1 % bei der nutzbaren Mindesthelligkeit (ungefähr dem bisherigen 5-%-Bereich); 0 % ist aus. Die 16 physisch möglichen Stufen je Farbkanal werden dadurch nicht feiner. Browser und HA verwenden dieselbe Umrechnung. Schnelle Änderungen werden geordnet; nach einem verlorenen Browser-Aufruf wird die Bedienung spätestens nach sechs Sekunden wieder frei.
+
+Copyright und Lizenz stehen direkt auf der Geräte-Webseite unter **MIT-Lizenz und Drittanbieter**. Die vollständigen Texte sind lokal auf `/license` erreichbar, auch ohne Internet.
 
 ## Home Assistant optional ergänzen
 

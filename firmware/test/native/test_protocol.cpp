@@ -46,6 +46,18 @@ int main() {
   assert(setting.r==255 && setting.brightness==128 && setting.effect==2);
   assert(validAdminPassword("bandfunk2026"));assert(!validAdminPassword("short"));assert(!validAdminPassword("bad\npassword"));
   assert(!validAdminPassword(nullptr));
+  setting.on=true;setting.r=0;setting.g=0;setting.b=255;setting.effect=0;
+  uint8_t previous=0;
+  for(int brightness=0;brightness<=255;++brightness) {
+    setting.brightness=brightness;auto dim=appliedColor(setting);
+    assert(dim.r==0 && dim.g==0 && dim.b>=previous);
+    if(!brightness)assert(dim.b==0);else assert(dim.b>=1);
+    previous=dim.b;
+  }
+  assert(previous==15);
+  setting.r=1;setting.b=0;setting.brightness=1;assert(appliedColor(setting).r==1);
+  setting.r=0;assert(appliedColor(setting).r==0);
+  assert(normalizedBrightness(0)==0 && normalizedBrightness(1)==3 && normalizedBrightness(2)==3 && normalizedBrightness(255)==255);
   testRadioTX();
   const char* nonce="0123456789abcdef0123456789abcdef";
   assert(allowProvision(true,true,nonce,nonce));

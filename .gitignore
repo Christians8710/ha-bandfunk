@@ -5,6 +5,7 @@ __pycache__/
 !keys/ota-public.pem
 firmware/include/ota_key.h
 firmware/include/app_icon.h
+firmware/include/legal_page.h
 dist/
 .venv/
 secrets*

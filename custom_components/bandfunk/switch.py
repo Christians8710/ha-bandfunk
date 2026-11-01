@@ -20,8 +20,10 @@ class BandFunkTX(BandFunkEntity, SwitchEntity):
 
     async def _set(self, enabled):
         try:
-            await self.coordinator.api.command("tx", {"enabled": enabled})
-            await self.coordinator.async_request_refresh()
+            async with self.coordinator.command_lock:
+                result=await self.coordinator.api.command("tx", {"enabled": enabled})
+                if isinstance(result,dict): self.coordinator.accept_command(result)
+                else: await self.coordinator.async_request_refresh()
         except (CannotConnect, InvalidAuth) as err:
             raise HomeAssistantError("Funkfreigabe konnte nicht gespeichert werden; Geräteverbindung prüfen") from err
 

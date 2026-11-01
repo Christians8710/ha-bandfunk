@@ -38,3 +38,25 @@ def test_rejects_auth_and_redirects():
             return Response(self.status)
     for status, error in ((401,api.InvalidAuth),(403,api.InvalidAuth),(302,api.CannotConnect),(500,api.CannotConnect)):
         with pytest.raises(error): asyncio.run(api.BandFunkAPI(Session(status),"esp.local","secret").status())
+
+
+@pytest.mark.parametrize("kind",["status","legacy","oversize","invalid"])
+def test_command_reads_bounded_authoritative_state_or_legacy_ok(kind):
+    import json
+    data=dict(api=1,id="aabbcc112233",version="0.2.1",protocol="test",rssi=-50,
+              uptime=10,free_heap=20000,edges=0,dropped=0,radio_ok=True,safe_mode=False,
+              ota_armed=False,tx_enabled=True,groups=[[0,0,0,0] for _ in range(10)])
+    body=json.dumps(data).encode() if kind=="status" else b'{"ok":true}' if kind=="legacy" else b'x'*8193 if kind=="oversize" else b'not-json'
+    class Content:
+        async def iter_chunked(self,size):
+            for i in range(0,len(body),size):yield body[i:i+size]
+    class Response:
+        status=200;content=Content()
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+    class Session:
+        def post(self,*args,**kwargs):return Response()
+    request=api.BandFunkAPI(Session(),"esp.local","secret").command("tx",{"enabled":True})
+    if kind in ("oversize","invalid"):
+        with pytest.raises(api.CannotConnect):asyncio.run(request)
+    else:assert asyncio.run(request)==(data if kind=="status" else None)

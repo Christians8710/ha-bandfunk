@@ -1,5 +1,15 @@
 # Änderungen
 
+## 0.2.1
+
+Die Websteuerung wartet nicht mehr unbegrenzt auf eine Antwort: Aufrufe enden nach sechs Sekunden mit einer verständlichen Meldung und geben die Bedienung wieder frei. Schnelle Änderungen werden nacheinander übertragen; ausstehende Werte einer Gruppe werden auf den letzten gewünschten Wert zusammengeführt. Alte Statusabfragen können neuere Befehle nicht mehr überschreiben.
+
+HA übernimmt den vom Gerät bestätigten Sollwert sofort aus der Befehlsantwort. Änderungen werden gemeinsam je Gerät geordnet, damit ein schneller Farbwechsel nicht die gerade eingestellte Helligkeit zurücksetzt. Ältere Firmware mit einfacher OK-Antwort bleibt unterstützt.
+
+Beim Dimmen wird der Bereich oberhalb von 0 auf die nutzbare Mindesthelligkeit verschoben: 1 % beginnt ungefähr beim bisherigen 5-%-Bereich, 0 % bleibt aus. Die Umrechnung erfolgt im ESP für Browser und HA gemeinsam. Physisch bleiben 16 Stufen pro Farbkanal; sehr dunkle gewählte Farben verschwinden nicht mehr allein durch Rundung.
+
+Copyright, vollständige MIT-Lizenz und Drittanbieterhinweise sind über die lokale Seite `/license` abrufbar, mit sichtbarem Link auf Steuerung, Anmeldung und Einrichtungsseite. Zusätzliche Diagnosewerte zeigen Neustartgrund, Heap-Fragmentierung und lange HTTP-/Schleifendurchläufe. WLAN-Energiesparen deaktiviert, um Antwortlatenzen zu reduzieren. Ein sporadischer Hardwarestillstand ist durch die bisherige Momentaufnahme nicht bewiesen; weitere Aussetzer lassen sich damit besser eingrenzen.
+
 ## 0.2.0
 
 BandFunk wird eigenständiger Web-Funkcontroller; Home Assistant bleibt optional. Lokale deutsche Webseite mit Logo, Gruppenwahl, Ein/Aus, Farbe, Helligkeit, Effekten und Dauerfreigabe. Funkfreigabe und zehn Gruppeneinstellungen bleiben nach Neustart erhalten; AUS bewahrt die zuletzt gewählte Farbe. Atomare Konfigurationsspeicherung nach drei Sekunden Ruhe statt Flash-Schreiben bei jedem Slider-Schritt.

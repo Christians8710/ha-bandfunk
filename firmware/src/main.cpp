@@ -17,6 +17,7 @@ extern "C" {
 #include "control_state.h"
 #include "device_page.h"
 #include "app_icon.h"
+#include "legal_page.h"
 #include "wifi_portal.h"
 #include "provision_guard.h"
 
@@ -33,6 +34,7 @@ struct AdminSession { String key; uint32_t until=0; } sessions[4];
 bool adminDefault=true, radioEnabled=true, configDirty=false, configSaveError=false;
 bool uploadBusy=false, restoreRadio=false;
 uint32_t configChangedAt=0, nextLoginAt=0;
+uint32_t httpLastMs=0,httpMaxMs=0,loopLastMs=0,loopMaxGapMs=0;
 GroupSetting controls[10];
 void markConfigDirty() { configDirty=true; configChangedAt=millis(); }
 void syncGroups();
@@ -121,9 +123,14 @@ void pageHeaders() {
   server.sendHeader("Referrer-Policy","no-referrer"); server.sendHeader("X-Content-Type-Options","nosniff");
 }
 void redirect(const char* path) { server.sendHeader("Location",path); server.send(303,"text/plain",""); }
+void licensePage(ESP8266WebServer& target) {
+  target.sendHeader("X-Content-Type-Options","nosniff");
+  target.chunkedResponseModeStart(200,"text/html; charset=utf-8");target.sendContent_P(DEVICE_HEAD);
+  target.sendContent_P(LEGAL_PAGE);target.sendContent_P(DEVICE_FOOTER);target.sendContent("</main></body></html>");target.chunkedResponseFinalize();
+}
 void loginPage() {
   pageHeaders(); server.chunkedResponseModeStart(200,"text/html; charset=utf-8"); server.sendContent_P(DEVICE_HEAD);
-  server.sendContent("<section class='card'><h2>Anmelden</h2><p>Dein lokaler BandFunk-Controller. Startzugang: admin / bandfunk2026. Ein selbst geändertes Passwort hat Vorrang.</p><form action='/login' method='post'><input type='hidden' name='csrf' value='"+webNonce+"'><label>Benutzer<input name='username' value='admin' autocomplete='username' required></label><label>Passwort<input name='password' type='password' autocomplete='current-password' required></label><p><button>Anmelden</button></p></form><p>Nach einer Passwortänderung bitte mit dem neuen Passwort anmelden.</p></section></main></body></html>");
+  server.sendContent("<section class='card'><h2>Anmelden</h2><p>Dein lokaler BandFunk-Controller. Startzugang: admin / bandfunk2026. Ein selbst geändertes Passwort hat Vorrang.</p><form action='/login' method='post'><input type='hidden' name='csrf' value='"+webNonce+"'><label>Benutzer<input name='username' value='admin' autocomplete='username' required></label><label>Passwort<input name='password' type='password' autocomplete='current-password' required></label><p><button>Anmelden</button></p></form><p>Nach einer Passwortänderung bitte mit dem neuen Passwort anmelden.</p></section>");server.sendContent_P(DEVICE_FOOTER);server.sendContent("</main></body></html>");
   server.chunkedResponseFinalize();
 }
 void syncGroups() { for (int i=0;i<10;++i) groups[i]=appliedColor(controls[i]); }
@@ -264,6 +271,9 @@ void sendStatus() {
   doc["api"]=1; doc["id"]=deviceId; doc["version"]=FW_VERSION;
   doc["protocol"]=decoder.name(); doc["rssi"]=WiFi.RSSI();
   doc["uptime"]=millis()/1000; doc["free_heap"]=ESP.getFreeHeap();
+  doc["heap_max_block"]=ESP.getMaxFreeBlockSize();doc["heap_fragmentation"]=ESP.getHeapFragmentation();
+  doc["reset_reason"]=ESP.getResetReason();doc["http_last_ms"]=httpLastMs;doc["http_max_ms"]=httpMaxMs;doc["loop_max_gap_ms"]=loopMaxGapMs;
+  doc["brightness_profile"]="minimum_5_percent";
   doc["radio_ok"]=radioOK; doc["safe_mode"]=safeMode; doc["ota_armed"]=armed();
   doc["edges"]=edgeCount; doc["dropped"]=dropped;
   doc["protocol"]="crowdsync_rf_experimentell";
@@ -293,7 +303,7 @@ void handleTX(bool web) {
   StaticJsonDocument<128> d;
   if (server.arg("plain").length()>128 || deserializeJson(d,server.arg("plain")) || !d["enabled"].is<bool>()) { server.send(400); return; }
   radioEnabled=d["enabled"].as<bool>(); markConfigDirty();
-  server.send(200,"application/json","{\"ok\":true}");
+  sendStatus();
 }
 void handleControl(bool web,bool legacy=false) {
   if (!(web?requireWebWrite():requireToken())) return;
@@ -310,13 +320,14 @@ void handleControl(bool web,bool legacy=false) {
   } else {
     if (!d["brightness"].is<int>() || !d["on"].is<bool>()) { server.send(400); return; }
     int brightness=d["brightness"]; if (brightness<0 || brightness>255) { server.send(400); return; }
-    c.r=r;c.g=g;c.b=b;c.brightness=brightness;c.effect=effect;c.on=d["on"];
+    c.r=r;c.g=g;c.b=b;c.brightness=normalizedBrightness(brightness);c.effect=effect;c.on=d["on"];
   }
-  syncGroups(); markConfigDirty(); server.send(200,"application/json","{\"ok\":true}");
+  syncGroups(); markConfigDirty(); sendStatus();
 }
 void setupRoutes() {
   server.collectHeaders("Authorization","Origin","Cookie","X-BandFunk-CSRF");
   server.on("/assets/icon.png",HTTP_GET,[](){ server.send_P(200,PSTR("image/png"),reinterpret_cast<const char*>(APP_ICON),sizeof(APP_ICON)); });
+  server.on("/license",HTTP_GET,[](){licensePage(server);});
   server.on("/login",HTTP_GET,loginPage);
   server.on("/login",HTTP_POST,[](){
     pageHeaders();
@@ -392,6 +403,7 @@ void setupRoutes() {
 void startDeviceServices() {
   if (servicesStarted) return;
   WiFi.persistent(false); WiFi.setAutoReconnect(true);
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
   if (WiFi.status()==WL_CONNECTED && MDNS.begin(hostname)) {
     MDNS.addService("bandfunk","tcp",80);
     MDNS.addServiceTxt("bandfunk","tcp","id",deviceId);
@@ -436,6 +448,8 @@ void startPortal() {
     portalState="connected"; portalMessage="WLAN-Verbindung erfolgreich bestätigt";
   });
   wifiManager.setWebServerCallback([](){
+    wifiManager.server->on("/license",HTTP_GET,[](){licensePage(*wifiManager.server);});
+    wifiManager.server->on("/assets/icon.png",HTTP_GET,[](){wifiManager.server->send_P(200,PSTR("image/png"),reinterpret_cast<const char*>(APP_ICON),sizeof(APP_ICON));});
     // These first-match handlers prevent library OTA/erase and protect saves.
     auto deny=[](){wifiManager.server->send(403,"text/plain; charset=utf-8","Diese Funktion ist im Einrichtungsportal gesperrt.");};
     for (const char* path:{"/update","/u","/erase","/restart","/exit","/close","/info","/param","/paramsave","/status"})
@@ -444,7 +458,7 @@ void startPortal() {
       if (!wifiManager.fromAP()) { wifiManager.deny(); return; }
       wifiManager.headers();
       String page="<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>BandFunk einrichten</title><h1>BandFunk HA " FW_VERSION "</h1><p>Passwort für das Einrichtungs-WLAN: bandfunk2026</p>";
-      page+=keyPanel();page+="<form method='post' action='/admin-reset'><input type='hidden' name='nonce' value='"+provisionNonce+"'><button>Admin-Passwort auf bandfunk2026 zurücksetzen</button></form>"; page+="<p><a href='/wifi'>WLAN auswählen und verbinden</a></p><p><a href='/0wifi'>Verstecktes WLAN manuell eintragen</a></p><p>Nach dem Speichern wird die Verbindung geprüft. Bei Fehlern bitte wieder mit dem Einrichtungs-WLAN verbinden.</p></html>";
+      page+=keyPanel();page+=FPSTR(DEVICE_FOOTER);page+="<form method='post' action='/admin-reset'><input type='hidden' name='nonce' value='"+provisionNonce+"'><button>Admin-Passwort auf bandfunk2026 zurücksetzen</button></form>"; page+="<p><a href='/wifi'>WLAN auswählen und verbinden</a></p><p><a href='/0wifi'>Verstecktes WLAN manuell eintragen</a></p><p>Nach dem Speichern wird die Verbindung geprüft. Bei Fehlern bitte wieder mit dem Einrichtungs-WLAN verbinden.</p></html>";
       wifiManager.server->send(200,"text/html; charset=utf-8",page);
     });
     wifiManager.server->on("/admin-reset",HTTP_POST,[](){
@@ -499,7 +513,7 @@ void setup() {
       if (list.size()==10) for(int i=0;i<10;++i) {
         JsonArray a=list[i]; if(a.size()!=6)continue;
         bool valid=a[5].is<bool>();for(int j=0;j<5;++j)valid=valid && a[j].is<int>() && a[j].as<int>()>=0 && a[j].as<int>()<=(j==4?15:255);
-        if(valid) {auto& c=controls[i];c.r=a[0];c.g=a[1];c.b=a[2];c.brightness=a[3];c.effect=a[4];c.on=a[5];}
+        if(valid) {auto& c=controls[i];c.r=a[0];c.g=a[1];c.b=a[2];c.brightness=normalizedBrightness(a[3]);c.effect=a[4];c.on=a[5];}
       }
     }
     f.close();
@@ -524,6 +538,7 @@ void setup() {
 }
 
 void loop() {
+  uint32_t loopNow=millis();if(loopLastMs && loopNow-loopLastMs>loopMaxGapMs)loopMaxGapMs=loopNow-loopLastMs;loopLastMs=loopNow;
   if (!bootCleared && millis()>60000) { boot.count=0; saveBoot(); bootCleared=true; }
   if (portal) {
     wifiManager.process();
@@ -543,7 +558,8 @@ void loop() {
     delay(1); return;
   }
   if (txDone || (txRunning && uint32_t(micros()-txWaveStarted)>150000)) finishTX();
-  server.handleClient(); MDNS.update();
+  uint32_t httpStarted=millis();server.handleClient();httpLastMs=millis()-httpStarted;if(httpLastMs>httpMaxMs)httpMaxMs=httpLastMs;
+  MDNS.update();
   if(restoreRadio && !uploadBusy) {restoreRadio=false;if(!safeMode)radioOK=initRadio();}
   // At most one 82.4 ms packet per 1100 ms: bounded aggregate airtime.
   if (txEnabled() && millis()-lastTx>=1100) startTX();
