@@ -14,6 +14,7 @@ extern "C" {
 #include "protocol.h"
 #include "crowdsync.h"
 #include "setup_page.h"
+#include "provision_guard.h"
 
 // GPIO15/D8 stays completely unused: LOW is required at reset.
 constexpr uint8_t CS = D1, DATA = D2, BUTTON = D0;
@@ -23,7 +24,7 @@ BearSSL::PublicKey otaKey(OTA_PUBLIC_KEY);
 BearSSL::HashSHA256 otaHash;
 BearSSL::SigningVerifier otaVerify(&otaKey);
 UnknownOOK decoder;
-String token, ssid, password, apPassword, deviceId, hostname;
+String token, ssid, password, apPassword, deviceId, hostname, provisionNonce;
 bool portal = false, safeMode = false, radioOK = false;
 bool uploadAllowed = false, uploadOK = false, uploadFailed = false;
 uint32_t otaUntil = 0, buttonSince = 0, rebootAt = 0;
@@ -152,7 +153,7 @@ void sendStatus() {
   String body; serializeJson(doc,body); server.send(200,"application/json",body);
 }
 const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BandFunk HA</title>
-<h1>BandFunk HA 0.1.2</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
+<h1>BandFunk HA 0.1.3</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
 <p>OTA: Taster D0–GND drei Sekunden halten. Dann ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen.</p>
 <form method="post" action="/update" enctype="multipart/form-data"><label>Signierte Firmware <input type="file" name="firmware" required></label><button>Firmware installieren</button></form>
 <p>Anmeldung: Benutzer admin, Passwort = persönlicher API-Schlüssel von der Einrichtungsseite. Nur im vertrauenswürdigen lokalen Netz verwenden.</p>)HTML";
@@ -170,7 +171,8 @@ void setupRoutes() {
       if (server.client().localIP()!=WiFi.softAPIP()) { server.send(403); return; }
       String page="<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>BandFunk einrichten</title><h1>BandFunk WLAN einrichten</h1><p>Einrichtungs-WLAN-Passwort: <strong>bandfunk2026</strong></p>";
       page+=keyPanel();
-      page+=FPSTR(SETUP_FORM); page+="</html>";
+      String form=FPSTR(SETUP_FORM); form.replace("__PROVISION_NONCE__",provisionNonce);
+      page+=form; page+="</html>";
       server.send(200,"text/html; charset=utf-8",page);
     } else {
       if (!requireAdmin()) return;
@@ -196,8 +198,10 @@ void setupRoutes() {
     server.send(200,"application/json",body);
   });
   server.on("/provision", HTTP_POST, []() {
-    if (!portal || server.client().localIP() != WiFi.softAPIP()) { server.send(403); return; }
-    if (server.hasHeader("Origin") && server.header("Origin") != "http://192.168.4.1") { server.send(403); return; }
+    server.sendHeader("Cache-Control","no-store");
+    if (!allowProvision(portal,server.client().localIP()==WiFi.softAPIP(),provisionNonce.c_str(),server.arg("nonce").c_str())) {
+      server.send(403,"text/html; charset=utf-8","<!doctype html><html lang=de><meta charset=utf-8><h1>Einrichtung abgelaufen</h1><p>Bitte mit dem Einrichtungs-WLAN verbinden und <a href='/'>die Einrichtungsseite neu laden</a>. Falls das Portal geschlossen ist, D0 beim Neustart gedrückt halten.</p></html>"); return;
+    }
     String newSSID=server.arg("ssid"), newPassword=server.arg("password");
     if (!newSSID.length() || newSSID.length()>32 || newPassword.length()>64 || (newPassword.length()>0 && newPassword.length()<8)) { server.send(400,"text/plain","WLAN-Daten ungültig"); return; }
     ssid=newSSID; password=newPassword;
@@ -278,6 +282,7 @@ void setup() {
     Serial.println(WiFi.localIP());
   }
   if (!safeMode && !portal) radioOK=initRadio();
+  provisionNonce=randomHex(16);
   timer1_isr_init(); timer1_attachInterrupt(txTimer); setupRoutes();
 }
 void loop() {

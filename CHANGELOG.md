@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.3
+
+Behebt HTTP 403 beim Speichern der WLAN-Daten: AP-gebundenes Formular mit zufälligem Nonce pro Neustart statt starrer Origin-Prüfung. Funktioniert auch bei browserseitig unterdrückter Herkunft. Abgelaufene Formulare zeigen einen verständlichen Hinweis. Native Regressionstests prüfen gültige, fehlende und falsche Nonces sowie die AP-/Portal-Sperren.
+
 ## 0.1.2
 
 Einrichtungsseite zeigt nahe 2,4-GHz-WLANs mit Signalstärke und Verschlüsselungsstatus. Asynchrone Suche, erneuter Scan, Auswahl und manuelle Eingabe versteckter SSIDs. Ergebnisse bleiben lokal im Einrichtungs-WLAN; kein Upload von WLAN-Namen.

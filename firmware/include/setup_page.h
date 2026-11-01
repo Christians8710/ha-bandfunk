@@ -6,6 +6,7 @@ static const char SETUP_FORM[] PROGMEM = R"HTML(
 <button id="scan" type="button">Neu suchen</button><p id="scan-status" role="status">WLANs werden gesucht …</p>
 <label>Gefundene WLANs <select id="networks"><option value="">WLAN auswählen oder SSID unten eingeben</option></select></label>
 <form method="post" action="/provision">
+<input type="hidden" name="nonce" value="__PROVISION_NONCE__">
 <p><label>SSID <input id="ssid" name="ssid" maxlength="32" required autocomplete="off"></label></p>
 <p><label>WLAN-Passwort <input name="password" type="password" maxlength="64" autocomplete="off"></label></p>
 <button>Speichern und neu starten</button></form>

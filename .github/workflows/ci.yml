@@ -6,6 +6,12 @@ on:
 permissions:
   contents: read
 jobs:
+  protocol:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Paket-, Timing- und Provisionierungs-Regressionspruefungen
+        run: g++ -std=c++11 -Wall -Wextra -Werror -Ifirmware/include firmware/test/native/test_protocol.cpp -o /tmp/bandfunk-test && /tmp/bandfunk-test
   test:
     runs-on: ubuntu-24.04
     steps:
@@ -20,7 +26,6 @@ jobs:
           python -m venv /tmp/ha-test
           /tmp/ha-test/bin/pip install homeassistant==2025.1.4 pytest==8.3.5
           /tmp/ha-test/bin/python -m pytest tests/test_ha.py -q
-      - run: g++ -std=c++11 -Wall -Wextra -Werror -Ifirmware/include firmware/test/native/test_protocol.cpp -o /tmp/bandfunk-test && /tmp/bandfunk-test
       - run: python -m compileall -q custom_components tools
       - run: python -m platformio run --project-dir firmware
       - uses: actions/upload-artifact@v4
