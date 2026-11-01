@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.7
+
+Bei einer Registerabweichung zeigt die Funkdiagnose die genaue CC1101-Adresse sowie Soll- und Istwert. 0.1.6 startete nach dem signierten OTA erfolgreich, meldete im Test aber eine Registerabweichung vor dem ersten Sendestart. Diese wird jetzt einzeln auswertbar. Noch keine bestätigte Funksteuerung an V5.
+
 ## 0.1.6
 
 Korrigiert die Diagnose-Erweiterung: Der vergrößerte Status-JSON-Puffer liegt auf dem Heap statt dem begrenzten ESP8266-Stack. 0.1.5 zeigte beim Gerätetest Abstürze nach dem WLAN-Start und darf nicht für neue Installationen verwendet werden. 0.1.6 ersetzt diese Diagnoseversion.

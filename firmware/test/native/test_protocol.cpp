@@ -30,6 +30,7 @@ void testRadioTX() {
   FakeRadio idle; idle.badIdle=true; assert(!prepareRadioTX(idle,check)); assert(!idle.txRequested);
   FakeRadio write; write.badWrite=true; assert(!prepareRadioTX(write,check)); assert(!write.txRequested);
   FakeRadio freq; freq.badFrequency=true; assert(!prepareRadioTX(freq,check)); assert(!freq.txRequested);
+  assert(check.mismatchAddress==0x0F && check.expectedValue==0x71 && check.actualValue==0x70);
   FakeRadio pa; pa.badPA=true; assert(!prepareRadioTX(pa,check)); assert(!pa.txRequested);
   FakeRadio tx; tx.badTX=true; assert(!prepareRadioTX(tx,check)); assert(check.txState==0x16);
   FakeRadio pll; pll.regs[0x25]=0x3F; assert(!prepareRadioTX(pll,check)); assert(check.error[0]);

@@ -226,13 +226,15 @@ void sendStatus() {
   doc["tx_config_verified"]=txCheck.configVerified;
   doc["tx_idle_state"]=txCheck.idleState; doc["tx_chip_state"]=txCheck.txState;
   doc["tx_fscal1"]=txCheck.calibration; doc["tx_error"]=txCheck.error;
+  doc["tx_mismatch_register"]=txCheck.mismatchAddress;
+  doc["tx_expected_value"]=txCheck.expectedValue; doc["tx_actual_value"]=txCheck.actualValue;
   doc["tx_wave_us"]=txDuration; doc["tx_late_edges"]=txLateEdges; doc["tx_max_late_us"]=txMaxLateness;
   JsonArray list=doc.createNestedArray("groups");
   for (const auto& g:groups) { JsonArray a=list.createNestedArray(); a.add(g.r); a.add(g.g); a.add(g.b); a.add(g.effect); }
   String body; serializeJson(doc,body); server.send(200,"application/json",body);
 }
 const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BandFunk HA</title>
-<h1>BandFunk HA 0.1.6</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
+<h1>BandFunk HA 0.1.7</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
 <p>OTA: Den vorhandenen RESET-Taster kurz drücken. Danach ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen. Für RGB-Tests das OTA-Fenster schließen.</p>
 <form method="post" action="/ota/close"><button>OTA-Fenster schließen und Funk freigeben</button></form>
 <form method="post" action="/update" enctype="multipart/form-data"><label>Signierte Firmware <input type="file" name="firmware" required></label><button>Firmware installieren</button></form>
@@ -257,6 +259,8 @@ void setupRoutes() {
     page+="<section><h2>Funkdiagnose</h2><p>Startversuche: "+String(txAttempts)+
       "; Chip-Sendestatus bestaetigt: "+String(txPackets)+"; vollstaendige Impulsfolgen: "+String(txCompleted)+
       "; Fehler: "+String(txErrors)+".</p><p>Letzter Hinweis: "+String(txCheck.error[0]?txCheck.error:"Kein Fehler erkannt")+
+      ".</p><p>Abweichendes Register (dezimal, 255 = keine Abweichung): "+String(txCheck.mismatchAddress)+
+      "; Sollwert: "+String(txCheck.expectedValue)+"; Istwert: "+String(txCheck.actualValue)+
       ".</p><p>Letzte Impulsfolge: "+String(txDuration)+" Mikrosekunden; groesste Impulsverspaetung: "+String(txMaxLateness)+
       " Mikrosekunden.</p><p>Chip-Zustaende und Impulszaehler bestaetigen weder die abgestrahlte Funkleistung noch den Empfang am Armband. Seite fuer neue Werte neu laden.</p></section>";
     page+=keyPanel(); page+="</html>";

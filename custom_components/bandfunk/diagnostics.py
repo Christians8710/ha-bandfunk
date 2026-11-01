@@ -8,5 +8,6 @@ async def async_get_config_entry_diagnostics(hass, entry):
                "dropped", "radio_ok", "safe_mode", "ota_armed", "tx_enabled", "tx_packets",
                "tx_attempts", "tx_completed", "tx_errors", "tx_config_verified",
                "tx_idle_state", "tx_chip_state", "tx_fscal1", "tx_error", "tx_wave_us",
-               "tx_late_edges", "tx_max_late_us")
+               "tx_late_edges", "tx_max_late_us", "tx_mismatch_register",
+               "tx_expected_value", "tx_actual_value")
     return {"status": {k: c.data[k] for k in allowed if k in c.data}, "available": c.last_update_success}

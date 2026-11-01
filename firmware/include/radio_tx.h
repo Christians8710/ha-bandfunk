@@ -5,6 +5,7 @@
 // Checks confirm chip configuration/state, never reception or RF output power.
 struct TxCheck {
   uint8_t idleState=0xFF, txState=0xFF, calibration=0xFF;
+  uint8_t mismatchAddress=0xFF, expectedValue=0xFF, actualValue=0xFF;
   bool configVerified=false;
   const char* error="Noch kein Sendeversuch";
 };
@@ -23,7 +24,9 @@ template<class Radio> bool prepareRadioTX(Radio& radio, TxCheck& check) {
     {0x10,0x67},{0x11,0x32},{0x12,0x30},{0x17,0x00},{0x18,0x18},{0x22,0x11}
   };
   for (const auto& reg:expected) {
-    if (radio.read(reg[0])!=reg[1]) {
+    uint8_t actual=radio.read(reg[0]);
+    if (actual!=reg[1]) {
+      check.mismatchAddress=reg[0]; check.expectedValue=reg[1]; check.actualValue=actual;
       check.error="CC1101-Register stimmen nicht"; return false;
     }
   }
