@@ -13,8 +13,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: python -m pip install -r requirements-build.txt homeassistant==2025.1.4
+      - run: python -m pip install -r requirements-build.txt aiohttp==3.11.18
       - run: python -m pytest tests -q
+      - name: HA-Tests in separater Umgebung mit HA-eigenen Abhaengigkeiten
+        run: |
+          python -m venv /tmp/ha-test
+          /tmp/ha-test/bin/pip install homeassistant==2025.1.4 pytest==8.3.5
+          /tmp/ha-test/bin/python -m pytest tests/test_ha.py -q
       - run: g++ -std=c++11 -Wall -Wextra -Werror -Ifirmware/include firmware/test/native/test_protocol.cpp -o /tmp/bandfunk-test && /tmp/bandfunk-test
       - run: python -m compileall -q custom_components tools
       - run: python -m platformio run --project-dir firmware
