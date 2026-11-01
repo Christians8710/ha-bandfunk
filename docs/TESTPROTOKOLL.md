@@ -78,3 +78,17 @@ Diagnosegrundlagen: [TI-Datenblatt SWRS061I](https://www.ti.com/lit/ds/symlink/c
 - Browserpasswort: falsches bisheriges Passwort abgewiesen; neues Passwort speicherbar, alte Browser-Sitzungen danach ungültig; HA-API unverändert.
 - OTA ohne physisches Fenster / ohne Anmeldung / ohne Seitenschlüssel / ohne gültige Signatur abgewiesen. Nach abgelehntem Upload normaler Funkbetrieb wiederhergestellt.
 - Physischer Recovery-AP: Adminpasswort zurücksetzbar, WLAN und API-Schlüssel bleiben erhalten. Bibliotheks-OTA weiterhin gesperrt.
+
+## Ergebnisse am Gerät mit 0.2.0
+
+- Signiertes OTA von 0.1.7 auf 0.2.0 erfolgreich. WLAN und bisheriger HA-API-Schlüssel erhalten; vorherige Gruppen-Sollwerte nach Migration wieder übernommen.
+- Anmeldung `admin / bandfunk2026` über den Browser und per Formular-Test erfolgreich. Lokales Logo und Websteuerung werden ohne externe Ressourcen ausgeliefert.
+- Unangemeldetes `/web/status` abgewiesen. HA-Bearer gewährt keine Web-Administration; Browser-Cookie gewährt keinen Zugriff auf die HA-Bearer-API.
+- Web-Schreibzugriff ohne CSRF-Schlüssel abgewiesen. Falsches bisheriges Passwort und zu kurzes neues Passwort abgewiesen. Gültiger Passwort-Speicherpfad mit unverändertem Startpasswort geprüft; dabei vorhandene Browser-Sitzungen widerrufen, HA-API weiterhin erreichbar.
+- Websteuerung und API lesen identische Gruppenwerte. AUS erhält die letzte Farbe, Helligkeit und den Effekt; ausgesendeter AUS-Sollwert ist Schwarz.
+- Nach Speicherung und normalem Neustart sind Gruppenwerte und ausgeschaltete Funkfreigabe erhalten. Die vorherige Browser-Sitzung ist nach Neustart ungültig. Anschließend ursprüngliche Testwerte wiederhergestellt und Dauerfreigabe eingeschaltet.
+- Dauerbetrieb 136 Sekunden ohne erneute Freigabe: 124 zusätzliche vollständige Impulsfolgen, keine Funkfehler.
+- Vollständiges, aber unsigniertes Firmwareimage im physisch geöffneten OTA-Fenster abgewiesen. Kein Neustart; Funk wird danach wieder korrekt übertragen. Updatefenster anschließend geschlossen.
+- HACS aktualisiert und HA lädt Integration 0.2.0. Geräteansicht zeigt Firmware 0.2.0, Hauptschalter „Funkübertragung“ ohne Zeitlimit und CC1101 erkannt. Helligkeit in Web und HA übereinstimmend angezeigt; Pollintervall fünf Sekunden.
+- Automatisch bestanden: 15 lokal ausführbare Python-/JavaScript-Tests, native C++-Prüfungen, acht echte HA-Tests in CI, hassfest, HACS, Firmware-Build und Stackrahmenprüfung (sendStatus: lokal 160 Byte).
+- Weiter offen: externe Messung von RF-Leistung/Spektrum, Prüfung sämtlicher Effekte und anderer Platinenvarianten, Stromausfall beim Bootloader-Kopieren, physischer Passwort-Recoveryablauf und erzwungener Abbruch eines laufenden Uploads. Diese Fälle wurden durch die genannten Tests nicht vollständig nachgestellt.
