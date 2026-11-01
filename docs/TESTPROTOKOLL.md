@@ -13,8 +13,8 @@ Datum, Tester, ESP-Modell/Flashgröße, E07-Modellzusatz, Verdrahtung, Antenne, 
 |---|---|---|
 | 10 Kaltstarts | zuverlässiger Normalstart, D8 LOW | offen |
 | Modul abgezogen | HA erreichbar, Funkfehler statt Startblockade | offen |
-| WLAN falsch / nicht verfügbar | kein automatisch offenes Einrichtungsportal | offen |
-| D0 beim Start | WPA2-Portal, Timeout nach 10 Minuten | offen |
+| WLAN falsch / nicht verfügbar | geschützter Einrichtungs-AP, nach 10 Minuten aus | offen |
+| 3 RESET-Neustarts | WPA2-Portal, kein D0-Zusatztaster nötig, Timeout nach 10 Minuten | offen |
 | mDNS / manuelle IP | eindeutiger Eintrag, kein Duplikat | offen |
 | Gruppen 6 und 2, jeweils R/G/B/Aus | korrekte Farbe nur in gewählter Gruppe, andere bleibt erhalten | offen |
 | LED-Aus nach Schwarz | innerhalb der Empfangsfenster, vor Testende | offen |
@@ -30,3 +30,13 @@ Datum, Tester, ESP-Modell/Flashgröße, E07-Modellzusatz, Verdrahtung, Antenne, 
 | Diagnosedownload | keine Zugangsdaten, IP/MAC/SSID enthalten | offen |
 
 Automatisierte Tests ersetzen diese Prüfungen nicht. Negative Befunde mit Ablauf, Soll-/Istverhalten und Firmware-SHA melden.
+
+## Zusätzliche Prüfungen ab 0.1.4
+
+- Ohne D0-Beschaltung erfolgreich ins Heim-WLAN wechseln und Kaltstart wiederholen.
+- Falsches WLAN-Passwort: keine Erfolgsbestätigung; AP bleibt für erneute Eingabe offen.
+- Richtiges Passwort: DHCP-IP sichtbar, AP nach 30 Sekunden aus, Geräte-Webseite und HA-Discovery erreichbar.
+- Nach normalem Neustart dieselbe WLAN-Verbindung und denselben API-Schlüssel prüfen.
+- WiFiManager `/u` und `/update` auch per direktem POST testen: 403, kein Flash-Schreiben.
+- Fehlender/falscher Formularschlüssel und Zugriff über LAN statt AP: Speichern abgewiesen.
+- RESET öffnet OTA-Fenster; kalter Stromstart tut das nicht. Fenster über Geräte-Webseite schließen; Funk dann wieder freigebbar.

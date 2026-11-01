@@ -13,7 +13,7 @@ extern "C" {
 #include "ota_key.h"
 #include "protocol.h"
 #include "crowdsync.h"
-#include "setup_page.h"
+#include "wifi_portal.h"
 #include "provision_guard.h"
 
 // GPIO15/D8 stays completely unused: LOW is required at reset.
@@ -25,6 +25,16 @@ BearSSL::HashSHA256 otaHash;
 BearSSL::SigningVerifier otaVerify(&otaKey);
 UnknownOOK decoder;
 String token, ssid, password, apPassword, deviceId, hostname, provisionNonce;
+BandFunkWiFiManager wifiManager;
+std::unique_ptr<WiFiManagerParameter> portalKeyParameter;
+String portalParameterHTML;
+String portalState="ready", portalMessage="WLAN auswählen und Passwort eingeben.";
+bool portalSaved=false, saveInFlight=false, servicesStarted=false;
+uint32_t portalStarted=0, portalConnectedAt=0;
+// Default hardware is the board's RESET button. GPIO16/D0 has no pull-up.
+#ifndef BANDFUNK_EXTERNAL_D0_BUTTON
+#define BANDFUNK_EXTERNAL_D0_BUTTON 0
+#endif
 bool portal = false, safeMode = false, radioOK = false;
 bool uploadAllowed = false, uploadOK = false, uploadFailed = false;
 uint32_t otaUntil = 0, buttonSince = 0, rebootAt = 0;
@@ -153,8 +163,9 @@ void sendStatus() {
   String body; serializeJson(doc,body); server.send(200,"application/json",body);
 }
 const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BandFunk HA</title>
-<h1>BandFunk HA 0.1.3</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
-<p>OTA: Taster D0–GND drei Sekunden halten. Dann ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen.</p>
+<h1>BandFunk HA 0.1.4</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
+<p>OTA: Den vorhandenen RESET-Taster kurz drücken. Danach ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen. Für RGB-Tests das OTA-Fenster schließen.</p>
+<form method="post" action="/ota/close"><button>OTA-Fenster schließen und Funk freigeben</button></form>
 <form method="post" action="/update" enctype="multipart/form-data"><label>Signierte Firmware <input type="file" name="firmware" required></label><button>Firmware installieren</button></form>
 <p>Anmeldung: Benutzer admin, Passwort = persönlicher API-Schlüssel von der Einrichtungsseite. Nur im vertrauenswürdigen lokalen Netz verwenden.</p>)HTML";
 String keyPanel() {
@@ -163,50 +174,18 @@ String keyPanel() {
 }
 void setupRoutes() {
   server.collectHeaders("Authorization", "Origin");
+  server.on("/ota/close",HTTP_POST,[](){
+    if (!requireAdmin()) return;
+    otaUntil=0;
+    server.sendHeader("Location","/"); server.send(303,"text/plain","");
+  });
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Cache-Control","no-store");
     server.sendHeader("X-Frame-Options","DENY");
     server.sendHeader("Referrer-Policy","no-referrer");
-    if (portal) {
-      if (server.client().localIP()!=WiFi.softAPIP()) { server.send(403); return; }
-      String page="<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>BandFunk einrichten</title><h1>BandFunk WLAN einrichten</h1><p>Einrichtungs-WLAN-Passwort: <strong>bandfunk2026</strong></p>";
-      page+=keyPanel();
-      String form=FPSTR(SETUP_FORM); form.replace("__PROVISION_NONCE__",provisionNonce);
-      page+=form; page+="</html>";
-      server.send(200,"text/html; charset=utf-8",page);
-    } else {
-      if (!requireAdmin()) return;
-      String page=FPSTR(PAGE); page+=keyPanel(); page+="</html>";
-      server.send(200,"text/html; charset=utf-8",page);
-    }
-  });
-  server.on("/api/wifi", HTTP_GET, []() {
-    server.sendHeader("Cache-Control","no-store");
-    if (!portal || server.client().localIP()!=WiFi.softAPIP()) { server.send(403); return; }
-    int count=WiFi.scanComplete();
-    if (count==WIFI_SCAN_FAILED) { WiFi.scanNetworks(true,false); server.send(202,"application/json","{\"scanning\":true}"); return; }
-    if (count==WIFI_SCAN_RUNNING) { server.send(202,"application/json","{\"scanning\":true}"); return; }
-    DynamicJsonDocument doc(4096);
-    JsonArray list=doc.createNestedArray("networks");
-    for (int i=0;i<count && list.size()<32;++i) {
-      String name=WiFi.SSID(i); if (!name.length()) continue;
-      JsonObject network=list.createNestedObject();
-      network["ssid"]=name; network["rssi"]=WiFi.RSSI(i);
-      network["secure"]=WiFi.encryptionType(i)!=ENC_TYPE_NONE;
-    }
-    String body; serializeJson(doc,body); WiFi.scanDelete();
-    server.send(200,"application/json",body);
-  });
-  server.on("/provision", HTTP_POST, []() {
-    server.sendHeader("Cache-Control","no-store");
-    if (!allowProvision(portal,server.client().localIP()==WiFi.softAPIP(),provisionNonce.c_str(),server.arg("nonce").c_str())) {
-      server.send(403,"text/html; charset=utf-8","<!doctype html><html lang=de><meta charset=utf-8><h1>Einrichtung abgelaufen</h1><p>Bitte mit dem Einrichtungs-WLAN verbinden und <a href='/'>die Einrichtungsseite neu laden</a>. Falls das Portal geschlossen ist, D0 beim Neustart gedrückt halten.</p></html>"); return;
-    }
-    String newSSID=server.arg("ssid"), newPassword=server.arg("password");
-    if (!newSSID.length() || newSSID.length()>32 || newPassword.length()>64 || (newPassword.length()>0 && newPassword.length()<8)) { server.send(400,"text/plain","WLAN-Daten ungültig"); return; }
-    ssid=newSSID; password=newPassword;
-    if (!saveConfig()) { server.send(500,"text/plain","Speichern fehlgeschlagen"); return; }
-    server.send(200,"text/plain; charset=utf-8","Gespeichert. Jetzt wieder mit dem Heimnetz verbinden."); rebootAt=millis()+1500;
+    if (!requireAdmin()) return;
+    String page=FPSTR(PAGE); page+=keyPanel(); page+="</html>";
+    server.send(200,"text/html; charset=utf-8",page);
   });
   server.on("/api/status", HTTP_GET,sendStatus);
   server.on("/api/tx",HTTP_POST,[](){
@@ -255,9 +234,91 @@ void setupRoutes() {
   });
   server.onNotFound([](){ server.send(404,"text/plain","Nicht gefunden"); }); server.begin();
 }
+void startDeviceServices() {
+  if (servicesStarted) return;
+  WiFi.persistent(false); WiFi.setAutoReconnect(true);
+  if (WiFi.status()==WL_CONNECTED && MDNS.begin(hostname)) {
+    MDNS.addService("bandfunk","tcp",80);
+    MDNS.addServiceTxt("bandfunk","tcp","id",deviceId);
+    MDNS.addServiceTxt("bandfunk","tcp","api","1");
+    Serial.printf("WLAN verbunden. IP: %s\n",WiFi.localIP().toString().c_str());
+  }
+  if (!safeMode && WiFi.status()==WL_CONNECTED) radioOK=initRadio();
+  setupRoutes(); servicesStarted=true;
+}
+void startPortal() {
+  portal=true; portalStarted=millis(); portalSaved=false;
+  apPassword="bandfunk2026";
+  wifiManager.setDebugOutput(false);
+  wifiManager.setRestorePersistent(false);
+  wifiManager.setConfigPortalBlocking(false);
+  wifiManager.setConfigPortalTimeout(PORTAL_WINDOW/1000);
+  wifiManager.setConnectTimeout(25);
+  wifiManager.setSaveConnectTimeout(25);
+  wifiManager.setBreakAfterConfig(false);
+  wifiManager.setDisableConfigPortal(false); // Keep success/IP visible for 30 seconds.
+  wifiManager.setShowInfoUpdate(false); wifiManager.setShowInfoErase(false);
+  wifiManager.setShowPassword(false); wifiManager.setShowStaticFields(false);
+  wifiManager.setShowDnsFields(false); wifiManager.setTitle("BandFunk HA " FW_VERSION);
+  wifiManager.setHostname(hostname.c_str());
+  wifiManager.setClass("invert");
+  const char* menu[]={"wifi","wifinoscan"}; wifiManager.setMenu(menu,2);
+  wifiManager.setCustomHeadElement("<meta name='referrer' content='no-referrer'><style>body.invert,body.invert a,body.invert h1{background:#10252c}button{background:#f5c66a;color:#10252c}</style>");
+  portalParameterHTML="<input type='hidden' name='nonce' value='"+provisionNonce+"'>"+keyPanel();
+  portalKeyParameter.reset(new WiFiManagerParameter(portalParameterHTML.c_str()));
+  wifiManager.addParameter(portalKeyParameter.get());
+  wifiManager.setSaveConfigCallback([](){
+    saveInFlight=false;
+    if (WiFi.status()!=WL_CONNECTED) return;
+    String previousSSID=ssid, previousPassword=password;
+    ssid=wifiManager.getWiFiSSID(false); password=wifiManager.getWiFiPass(false);
+    if (!saveConfig()) {
+      ssid=previousSSID; password=previousPassword;
+      portalState="save_failed"; portalMessage="WLAN verbunden, aber Speichern fehlgeschlagen. Bitte erneut versuchen.";
+      return;
+    }
+    portalSaved=true; portalConnectedAt=millis();
+    portalState="connected"; portalMessage="WLAN-Verbindung erfolgreich bestätigt";
+  });
+  wifiManager.setWebServerCallback([](){
+    // These first-match handlers prevent library OTA/erase and protect saves.
+    auto deny=[](){wifiManager.server->send(403,"text/plain; charset=utf-8","Diese Funktion ist im Einrichtungsportal gesperrt.");};
+    for (const char* path:{"/update","/u","/erase","/restart","/exit","/close","/info","/param","/paramsave","/status"})
+      wifiManager.server->on(path,HTTP_ANY,deny);
+    wifiManager.server->on("/",HTTP_GET,[](){
+      if (!wifiManager.fromAP()) { wifiManager.deny(); return; }
+      wifiManager.headers();
+      String page="<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>BandFunk einrichten</title><h1>BandFunk HA " FW_VERSION "</h1><p>Passwort für das Einrichtungs-WLAN: bandfunk2026</p>";
+      page+=keyPanel(); page+="<p><a href='/wifi'>WLAN auswählen und verbinden</a></p><p><a href='/0wifi'>Verstecktes WLAN manuell eintragen</a></p><p>Nach dem Speichern wird die Verbindung geprüft. Bei Fehlern bitte wieder mit dem Einrichtungs-WLAN verbinden.</p></html>";
+      wifiManager.server->send(200,"text/html; charset=utf-8",page);
+    });
+    wifiManager.server->on("/wifi",HTTP_ANY,[](){wifiManager.wifiPage(true);});
+    wifiManager.server->on("/0wifi",HTTP_ANY,[](){wifiManager.wifiPage(false);});
+    wifiManager.server->on("/wifisave",HTTP_ANY,[](){
+      if (!wifiManager.checkSave(provisionNonce)) { wifiManager.deny(); return; }
+      if (!wifiManager.server->arg("s").length() || wifiManager.server->arg("s").length()>32 || wifiManager.server->arg("p").length()>64) {
+        wifiManager.server->send(400,"text/plain; charset=utf-8","Bitte gültige SSID und WLAN-Passwort eingeben."); return;
+      }
+      saveInFlight=true; portalSaved=false; portalState="connecting"; portalMessage="WLAN-Verbindung wird geprüft …";
+      wifiManager.saveWiFi();
+    });
+    wifiManager.server->on("/bandfunk-status",HTTP_GET,[](){
+      if (!wifiManager.fromAP()) { wifiManager.deny(); return; }
+      wifiManager.headers(); StaticJsonDocument<512> doc;
+      doc["state"]=portalState; doc["message"]=portalMessage;
+      doc["ip"]=portalSaved?WiFi.localIP().toString():"";
+      String body; serializeJson(doc,body); wifiManager.server->send(200,"application/json",body);
+    });
+  });
+  wifiManager.startConfigPortal(hostname.c_str(),apPassword.c_str());
+  Serial.printf("WLAN-Einrichtung mit WiFiManager: %s / http://192.168.4.1\n",hostname.c_str());
+}
 void setup() {
   Serial.begin(115200); Serial.println();
-  pinMode(BUTTON,INPUT_PULLUP); delay(20); bool recovery=digitalRead(BUTTON)==LOW;
+  bool recovery=false;
+#if BANDFUNK_EXTERNAL_D0_BUTTON
+  pinMode(BUTTON,INPUT); delay(20); recovery=digitalRead(BUTTON)==LOW;
+#endif
   bool rtcOK=ESP.rtcUserMemoryRead(64,reinterpret_cast<uint32_t*>(&boot),sizeof(boot));
   if (!rtcOK || boot.magic!=0xBAADF00D || boot.check!=(boot.magic^boot.count^0xB4F06A11)) boot={0xBAADF00D,0,0};
   ++boot.count; safeMode=boot.count>=3 || recovery; saveBoot();
@@ -274,30 +335,44 @@ void setup() {
     WiFi.begin(ssid.c_str(),password.c_str()); uint32_t start=millis();
     while (WiFi.status()!=WL_CONNECTED && millis()-start<20000) { delay(50); }
   }
-  // Failed existing Wi-Fi does NOT automatically expose provisioning.
-  portal=!ssid.length() || recovery;
-  if (portal) { apPassword="bandfunk2026"; WiFi.mode(WIFI_AP_STA); WiFi.softAP(hostname.c_str(),apPassword.c_str()); Serial.printf("Einrichtungs-WLAN: %s\nAP-Passwort: %s\nhttp://192.168.4.1\n",hostname.c_str(),apPassword.c_str()); }
-  if (WiFi.status()==WL_CONNECTED && MDNS.begin(hostname)) {
-    MDNS.addService("bandfunk","tcp",80); MDNS.addServiceTxt("bandfunk","tcp","id",deviceId); MDNS.addServiceTxt("bandfunk","tcp","api","1");
-    Serial.println(WiFi.localIP());
-  }
-  if (!safeMode && !portal) radioOK=initRadio();
+  // External RESET opens a physical OTA window. Cold power-on does not.
+  if (ESP.getResetInfoPtr()->reason==REASON_EXT_SYS_RST) otaUntil=millis()+OTA_WINDOW;
   provisionNonce=randomHex(16);
-  timer1_isr_init(); timer1_attachInterrupt(txTimer); setupRoutes();
+  timer1_isr_init(); timer1_attachInterrupt(txTimer);
+  if (WiFi.status()!=WL_CONNECTED || recovery || safeMode) startPortal();
+  else startDeviceServices();
 }
+
 void loop() {
+  if (!bootCleared && millis()>60000) { boot.count=0; saveBoot(); bootCleared=true; }
+  if (portal) {
+    wifiManager.process();
+    // process() finishes a submitted connection attempt before returning.
+    if (saveInFlight) {
+      saveInFlight=false; portalState="failed";
+      uint8_t result=wifiManager.getLastConxResult();
+      portalMessage=result==WL_NO_SSID_AVAIL?"WLAN nicht gefunden. Bitte Auswahl prüfen.":
+        "Verbindung fehlgeschlagen. Bitte Passwort und 2,4-GHz-WLAN prüfen und erneut versuchen.";
+    }
+    bool finished=portalSaved && millis()-portalConnectedAt>=30000;
+    if (finished || millis()-portalStarted>=PORTAL_WINDOW) {
+      wifiManager.stopConfigPortal(); portal=false;
+      WiFi.mode(WIFI_STA); WiFi.persistent(false);
+      startDeviceServices();
+    }
+    delay(1); return;
+  }
   if (txDone) finishTX();
   server.handleClient(); MDNS.update();
   // At most one 82.4 ms packet per 1100 ms: bounded aggregate airtime.
   if (txEnabled() && millis()-lastTx>=1100) startTX();
   if (txRunning) { delay(1); return; }
-  if (portal && millis()>PORTAL_WINDOW) { WiFi.softAPdisconnect(true); portal=false; }
+#if BANDFUNK_EXTERNAL_D0_BUTTON
   if (digitalRead(BUTTON)==LOW) {
     if (!buttonSince) buttonSince=millis();
-    if (!buttonLatched && millis()-buttonSince>=3000) { otaUntil=millis()+OTA_WINDOW; buttonLatched=true; Serial.println("OTA 5 Minuten freigegeben"); }
+    if (!buttonLatched && millis()-buttonSince>=3000) { otaUntil=millis()+OTA_WINDOW; buttonLatched=true; }
   } else { buttonSince=0; buttonLatched=false; }
-  // Stable runtime clears repeated-crash counter, independently of Wi-Fi.
-  if (!bootCleared && millis()>60000) { boot.count=0; saveBoot(); bootCleared=true; }
+#endif
   for (uint16_t n=0; n<64 && tail!=head; ++n) {
     uint16_t i=tail; Pulse p{durations[i],bool(levels[i])}; tail=(tail+1)&255; decoder.consume(p);
   }

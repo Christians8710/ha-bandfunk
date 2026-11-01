@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.1.4
+
+WLAN-Einrichtung auf tzapu/WiFiManager 2.0.17 umgestellt: geprüfter Verbindungsversuch, Statusanzeige mit Geräte-IP, erneute Eingabe bei Fehlern und AP-Abschaltung nach bestätigtem Erfolg. Deutsche Templates und API-Schlüssel-Anzeige bleiben erhalten. Onboard-RESET statt unbeschaltetem GPIO16/D0 als physische OTA-Freigabe; zusätzlicher D0-Taster ist opt-in. Bibliotheks-OTA und administrative Nebenwege sind gesperrt.
+
+
 ## 0.1.3
 
 Behebt HTTP 403 beim Speichern der WLAN-Daten: AP-gebundenes Formular mit zufälligem Nonce pro Neustart statt starrer Origin-Prüfung. Funktioniert auch bei browserseitig unterdrückter Herkunft. Abgelaufene Formulare zeigen einen verständlichen Hinweis. Native Regressionstests prüfen gültige, fehlende und falsche Nonces sowie die AP-/Portal-Sperren.
