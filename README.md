@@ -6,6 +6,8 @@
 
 ## Hardwarestand
 
+Als nächste Erweiterungen sind [Mehrfachauswahl von Gruppen, gespeicherte Szenen und zeitliche Abläufe](docs/GEPLANT.md) vorgemerkt. Diese Funktionen sind noch nicht umgesetzt.
+
 Meine beiden Armbänder tragen die Platinenkennung `23A033V5`. Auf dem einen steht die **6**, auf dem anderen die **2**. Beide reagieren auf die Steuerung über Home Assistant. Ich habe noch nicht jeden Effekt einzeln getestet und kann bisher nur für meinen Aufbau sprechen. Die Anzeige in der Webseite und in HA zeigt den eingestellten Wert – eine Rückmeldung vom Armband gibt es nicht.
 
 Paketformat und Zeiten sind aus der MIT-lizenzierten, unabhängig untersuchten [CrowdSync_RF-Referenz](https://github.com/jamesw343/CrowdSync_RF/tree/b800899687224011657e4ac62caaf45d54892f6d) umgesetzt. Diese Referenz betrifft eine V7_2-Platine. Keine Hersteller-Firmware oder fremden Platinenfotos werden verteilt. BandFunk ist ein unabhängiges Projekt ohne Verbindung zum CrowdSync-Hersteller oder zum Home-Assistant-Projekt.

@@ -2,6 +2,12 @@
 
 Stand: 1. November 2026. **Meine beiden Armbänder der Gruppen 2 und 6 reagieren auf die Steuerung über HA. Ich habe noch nicht jeden Effekt und jede Farbe einzeln geprüft.**
 
+## Version 0.2.2
+
+Das anschließende signierte OTA-Update auf 0.2.2 war erfolgreich. Die gekürzte Bedienseite wurde in Chrome kontrolliert: Firmware 0.2.2, Funk aktiv, keine gemeldeten Funkfehler, Helligkeitsanzeige 1 %. Die unten für 0.2.1 geprüfte Steuerlogik ist unverändert enthalten. Copyright und Lizenzlink bleiben auf der Seite.
+
+GitHub-Prüfungen für den Code-Stand e5ba519 vollständig erfolgreich (Lauf 41344529474). Der öffentliche Web-Flasher liefert Manifest 0.2.2 und dieselbe Factory-Datei wie der lokale Release-Build (SHA-256 verglichen). Release 0.2.2 mit fünf Dateien als Entwurf abgelegt.
+
 ## Version 0.2.1
 
 Das signierte Update von 0.2.0 auf 0.2.1 wurde am angeschlossenen D1 mini installiert. Das Gerät blieb unter derselben Adresse und mit unverändertem HA-API-Schlüssel erreichbar, Funk und Konfiguration waren weiter aktiv.
