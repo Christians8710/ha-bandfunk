@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.2.3
+
+Geräteoberfläche, Anmeldung, WLAN-Portal, Lizenzseite und Web-Flasher verwenden eine gemeinsame Gestaltung. Farben und Abstände stehen zentral in `web/assets/bandfunk.css` und werden für die Firmware lokal eingebettet. Sichtbarer Tastaturfokus, größere Farbtasten, geordnete Farbauswahl auf kleinen Bildschirmen und bessere Umbrüche ergänzen die Bedienung. Das vorhandene Logo und die freiwillige GitHub-Sponsors-Konfiguration bleiben erhalten.
+
+Keine Änderung an Funkprotokoll, Authentifizierung, OTA-Vertrauensschlüssel oder gespeicherten Einstellungen. Vorhandene signierte Updates bleiben nutzbar. Home Assistant kann unabhängig aktualisiert werden; das Geräte-Update erfordert keine HA-Neuinstallation.
+
 ## 0.2.2
 
 Die Geräteoberfläche und der Web-Flasher zeigen nur die zur Bedienung nötigen Informationen. Persönliche Testberichte, allgemeine Hinweise und technische Erläuterungen sind aus den Steuerseiten entfernt; sie bleiben in der Dokumentation. Copyright und Lizenzzugang bleiben erhalten.

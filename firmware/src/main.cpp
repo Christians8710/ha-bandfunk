@@ -41,6 +41,7 @@ void syncGroups();
 BandFunkWiFiManager wifiManager;
 std::unique_ptr<WiFiManagerParameter> portalKeyParameter;
 String portalParameterHTML;
+String portalThemeHead;
 String portalState="ready", portalMessage="WLAN auswählen und Passwort eingeben.";
 bool portalSaved=false, saveInFlight=false, servicesStarted=false;
 uint32_t portalStarted=0, portalConnectedAt=0;
@@ -430,8 +431,9 @@ void startPortal() {
   wifiManager.setHostname(hostname.c_str());
   wifiManager.setClass("invert");
   const char* menu[]={"wifi","wifinoscan"}; wifiManager.setMenu(menu,2);
-  wifiManager.setCustomHeadElement("<meta name='referrer' content='no-referrer'><style>body.invert,body.invert a,body.invert h1{background:#10252c}button{background:#f5c66a;color:#10252c}</style>");
-  portalParameterHTML="<input type='hidden' name='nonce' value='"+provisionNonce+"'>"+keyPanel();
+  portalThemeHead=FPSTR(PORTAL_THEME);
+  wifiManager.setCustomHeadElement(portalThemeHead.c_str());
+  portalParameterHTML="<input type='hidden' name='nonce' value='"+provisionNonce+"'>"+keyPanel()+FPSTR(DEVICE_FOOTER);
   portalKeyParameter.reset(new WiFiManagerParameter(portalParameterHTML.c_str()));
   wifiManager.addParameter(portalKeyParameter.get());
   wifiManager.setSaveConfigCallback([](){
@@ -457,8 +459,8 @@ void startPortal() {
     wifiManager.server->on("/",HTTP_GET,[](){
       if (!wifiManager.fromAP()) { wifiManager.deny(); return; }
       wifiManager.headers();
-      String page="<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>BandFunk einrichten</title><h1>BandFunk HA " FW_VERSION "</h1><p>Passwort für das Einrichtungs-WLAN: bandfunk2026</p>";
-      page+=keyPanel();page+=FPSTR(DEVICE_FOOTER);page+="<form method='post' action='/admin-reset'><input type='hidden' name='nonce' value='"+provisionNonce+"'><button>Admin-Passwort auf bandfunk2026 zurücksetzen</button></form>"; page+="<p><a href='/wifi'>WLAN auswählen und verbinden</a></p><p><a href='/0wifi'>Verstecktes WLAN manuell eintragen</a></p><p>Nach dem Speichern wird die Verbindung geprüft. Bei Fehlern bitte wieder mit dem Einrichtungs-WLAN verbinden.</p></html>";
+      String page=FPSTR(DEVICE_HEAD); page+="<section class=card><h2>WLAN einrichten</h2><p>Passwort für das Einrichtungs-WLAN: <strong>bandfunk2026</strong></p>";
+      page+=keyPanel();page+="<form method='post' action='/admin-reset'><input type='hidden' name='nonce' value='"+provisionNonce+"'><button>Admin-Passwort auf bandfunk2026 zurücksetzen</button></form>"; page+="<p><a href='/wifi'>WLAN auswählen und verbinden</a></p><p><a href='/0wifi'>Verstecktes WLAN manuell eintragen</a></p><p>Nach dem Speichern wird die Verbindung geprüft. Bei Fehlern bitte wieder mit dem Einrichtungs-WLAN verbinden.</p></section>";page+=FPSTR(DEVICE_FOOTER);page+="</main></body></html>";
       wifiManager.server->send(200,"text/html; charset=utf-8",page);
     });
     wifiManager.server->on("/admin-reset",HTTP_POST,[](){
@@ -552,6 +554,7 @@ void loop() {
     bool finished=portalSaved && millis()-portalConnectedAt>=30000;
     if (finished || millis()-portalStarted>=PORTAL_WINDOW) {
       wifiManager.stopConfigPortal(); portal=false;
+      wifiManager.setCustomHeadElement("");portalThemeHead=String();
       WiFi.mode(WIFI_STA); WiFi.persistent(false);
       startDeviceServices();
     }

@@ -6,6 +6,7 @@ __pycache__/
 firmware/include/ota_key.h
 firmware/include/app_icon.h
 firmware/include/legal_page.h
+firmware/include/ui_style.h
 dist/
 .venv/
 secrets*

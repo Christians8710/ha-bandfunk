@@ -19,7 +19,7 @@ jobs:
       - name: Factory-Datei und Manifest pruefen
         run: |
           test -f web/manifest.json
-          test -f web/bandfunk-0.2.2.bin
+          test -f web/bandfunk-0.2.3.bin
           cd web && sha256sum -c SHA256SUMS
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
