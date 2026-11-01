@@ -1,0 +1,27 @@
+{
+  "title": "BandFunk HA",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect BandFunk",
+        "description": "Install the ESP on this PC using the [web flasher]({flasher_url}), then provision Wi-Fi. Enter hostname without http:// and the API key from the USB console. The local HTTP API requires a trusted LAN. RGB is experimental and needs testing on your wristband.",
+        "data": {
+          "host": "Host",
+          "token": "API key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect or incompatible firmware.",
+      "invalid_auth": "Invalid API key.",
+      "invalid_host": "Enter a hostname or IPv4 address only."
+    },
+    "abort": {
+      "already_configured": "Device already configured.",
+      "wrong_device": "Device identity does not match.",
+      "invalid_discovery": "Invalid discovery identity.",
+      "reauth_successful": "Credentials updated.",
+      "reconfigure_successful": "Address updated."
+    }
+  }
+}

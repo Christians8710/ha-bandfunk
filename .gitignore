@@ -1,0 +1,9 @@
+.pio/
+__pycache__/
+.pytest_cache/
+*.pem
+!keys/ota-public.pem
+firmware/include/ota_key.h
+dist/
+.venv/
+secrets*

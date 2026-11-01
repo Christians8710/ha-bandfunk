@@ -1,0 +1,27 @@
+{
+  "title": "BandFunk HA",
+  "config": {
+    "step": {
+      "user": {
+        "title": "BandFunk verbinden",
+        "description": "ESP einmalig am aktuellen PC über den [Web-Flasher]({flasher_url}) installieren und WLAN einrichten. Host ohne http:// eingeben. Der API-Schlüssel steht im USB-Terminal. Die lokale HTTP-API ist für ein vertrauenswürdiges LAN vorgesehen. RGB ist experimentell und muss am eigenen Armband getestet werden.",
+        "data": {
+          "host": "Geräteadresse",
+          "token": "API-Schlüssel"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Gerät nicht erreichbar oder Firmware inkompatibel.",
+      "invalid_auth": "API-Schlüssel ungültig.",
+      "invalid_host": "Bitte nur Hostname oder IPv4-Adresse eingeben."
+    },
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits eingerichtet.",
+      "wrong_device": "Die Geräte-ID stimmt nicht überein.",
+      "invalid_discovery": "Ungültige Geräteerkennung.",
+      "reauth_successful": "Zugangsdaten aktualisiert.",
+      "reconfigure_successful": "Geräteadresse aktualisiert."
+    }
+  }
+}
