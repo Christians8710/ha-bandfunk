@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.6
+
+Korrigiert die Diagnose-Erweiterung: Der vergrößerte Status-JSON-Puffer liegt auf dem Heap statt dem begrenzten ESP8266-Stack. 0.1.5 zeigte beim Gerätetest Abstürze nach dem WLAN-Start und darf nicht für neue Installationen verwendet werden. 0.1.6 ersetzt diese Diagnoseversion.
+
 ## 0.1.5
 
 Funkdiagnose: kritische CC1101-Register und OOK-Leistungstabelle werden vor jedem Paket zurückgelesen. Senden startet erst nach bestätigtem TX-Zustand und geprüfter PLL-Kalibrierung statt nach einer festen 800-µs-Wartezeit. SPI-Fehler, ausbleibender Sendestatus und abgebrochene Impulsfolgen stoppen den Test. Zähler unterscheiden Versuche, Chip-TX-Starts und vollständig ausgegebene Impulsfolgen. Geräte-Webseite und HA-Diagnosedownload zeigen die Messwerte. Timer-Zeitlimit und interne Impulsverspätungsstatistik ergänzt; native Fehlerpfadtests.

@@ -28,6 +28,7 @@ jobs:
           /tmp/ha-test/bin/python -m pytest tests/test_ha.py -q
       - run: python -m compileall -q custom_components tools
       - run: python -m platformio run --project-dir firmware
+      - run: python tools/check_stack.py firmware/.pio/build/d1_mini/src/main.cpp.su
       - uses: actions/upload-artifact@v4
         with:
           name: bandfunk-firmware-build

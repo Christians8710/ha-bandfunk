@@ -211,7 +211,10 @@ void startTX() {
 }
 void sendStatus() {
   if (!requireToken()) return;
-  StaticJsonDocument<3072> doc;
+  // HTTP handlers already use the small ESP8266 continuation stack.
+  // Keep the expanded diagnostic document on the heap.
+  DynamicJsonDocument doc(3072);
+  if (!doc.capacity()) { server.send(503,"text/plain","Zu wenig Diagnosespeicher"); return; }
   doc["api"]=1; doc["id"]=deviceId; doc["version"]=FW_VERSION;
   doc["protocol"]=decoder.name(); doc["rssi"]=WiFi.RSSI();
   doc["uptime"]=millis()/1000; doc["free_heap"]=ESP.getFreeHeap();
@@ -229,7 +232,7 @@ void sendStatus() {
   String body; serializeJson(doc,body); server.send(200,"application/json",body);
 }
 const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BandFunk HA</title>
-<h1>BandFunk HA 0.1.5</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
+<h1>BandFunk HA 0.1.6</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
 <p>OTA: Den vorhandenen RESET-Taster kurz drücken. Danach ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen. Für RGB-Tests das OTA-Fenster schließen.</p>
 <form method="post" action="/ota/close"><button>OTA-Fenster schließen und Funk freigeben</button></form>
 <form method="post" action="/update" enctype="multipart/form-data"><label>Signierte Firmware <input type="file" name="firmware" required></label><button>Firmware installieren</button></form>
