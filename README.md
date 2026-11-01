@@ -1,4 +1,4 @@
-# BandFunk HA · V0.1.1
+# BandFunk HA · V0.1.2
 
 Deutsche HACS-Custom-Integration und ESP8266-Firmware für Wemos/LOLIN D1 mini (4 MB) mit EBYTE E07-M1101D-TH bzw. passendem SMA-Modul, CC1101 bei 433,92 MHz.
 
@@ -42,8 +42,8 @@ Die Zahlen beziehen sich auf die [offizielle EBYTE-TH-Tabelle](https://www.ebyte
 1. In HACS → Menü → Benutzerdefinierte Repositories: `https://github.com/Christians8710/ha-bandfunk`, Typ **Integration** hinzufügen.
 2. **BandFunk HA** herunterladen, Home Assistant neu starten.
 3. [HTTPS-Web-Flasher](https://Christians8710.github.io/ha-bandfunk/) am PC mit dem angeschlossenen ESP öffnen. Desktop-Chrome oder Edge mit Web Serial verwenden. Zugriff erfolgt auf den COM-Port **dieses PCs**, nicht auf den HA-Server. Eventuell CH340-Treiber und ein echtes USB-Datenkabel erforderlich.
-4. Einmalig `bandfunk-0.1.1.bin` flashen. Mit dem Einrichtungs-WLAN `bandfunk-…` und Passwort `bandfunk2026` verbinden. In Chrome `http://192.168.4.1` öffnen: Dort steht der persönliche API-Schlüssel mit Kopierknopf. Vor dem Speichern der WLAN-Daten privat sichern. Der API-Schlüssel wird pro Gerät erzeugt; das Einrichtungs-WLAN-Passwort ist bewusst fest vorgegeben.
-5. Mit `bandfunk-…` verbinden, `http://192.168.4.1` öffnen, SSID und WLAN-Passwort eingeben. Anschließend wieder das Heimnetz verwenden. Portal schließt nach zehn Minuten. Eine reine WLAN-Störung öffnet es nicht erneut.
+4. Einmalig `bandfunk-0.1.2.bin` flashen. Mit dem Einrichtungs-WLAN `bandfunk-…` und Passwort `bandfunk2026` verbinden. In Chrome `http://192.168.4.1` öffnen: Dort steht der persönliche API-Schlüssel mit Kopierknopf. Vor dem Speichern der WLAN-Daten privat sichern. Der API-Schlüssel wird pro Gerät erzeugt; das Einrichtungs-WLAN-Passwort ist bewusst fest vorgegeben.
+5. Mit `bandfunk-…` verbinden, `http://192.168.4.1` öffnen, WLAN aus der Liste auswählen und Passwort eingeben. Die Suche zeigt 2,4-GHz-Netze am Standort des ESP; über „Neu suchen“ aktualisieren. Versteckte SSIDs können manuell eingegeben werden. Anschließend wieder das Heimnetz verwenden. Portal schließt nach zehn Minuten. Eine reine WLAN-Störung öffnet es nicht erneut.
 6. HA → Einstellungen → Geräte & Dienste → Integration hinzufügen → **BandFunk HA**. Host und API-Schlüssel eingeben oder mDNS-Fund auswählen. Der Schlüssel bleibt später auch auf der lokalen Geräte-Webseite sichtbar: Anmeldung als `admin`, Passwort ist der API-Schlüssel. Diese Anzeige funktioniert in Chrome und bleibt vor anonymem Zugriff aus dem Heimnetz geschützt. Discovery benötigt ein gemeinsames Multicast-Netz; andernfalls IP manuell eintragen. DHCP-Reservierung empfohlen.
 
 ## Erster RGB-Test mit den zwei Armbändern
@@ -92,6 +92,6 @@ Das Repository enthält bereits den öffentlichen Projektschlüssel: `keys/ota-p
 
 HA bietet WLAN-RSSI, Laufzeit, freien RAM, Firmware, Flanken-/Verlustzähler, Funkmodul-, Recovery- und OTA-Status. Diagnoseexport benutzt eine feste Freigabeliste ohne API-Schlüssel, IP, MAC, SSID oder WLAN-Passwort. Der API-Schlüssel wird in HA wie andere Integrationseinstellungen gespeichert: HA-Backups schützen.
 
-Der Empfangsring ist auf 255 Flanken begrenzt und wird im Hauptprogramm geleert. Die V0.1.1 zählt Flanken, ist aber kein vollständiger Mitschnitt- oder OOK-Decoder. Für genaue Zeitmessung Logic Analyzer oder SDR verwenden. `ProtocolDecoder` bildet den Einstieg für spätere Empfängerdecoder; `crowdsync.h` kapselt Paket- und Wellenformerzeugung des experimentellen Sendetreibers. Es gibt keinen frei zugänglichen Rohsender-Endpunkt.
+Der Empfangsring ist auf 255 Flanken begrenzt und wird im Hauptprogramm geleert. Die V0.1.2 zählt Flanken, ist aber kein vollständiger Mitschnitt- oder OOK-Decoder. Für genaue Zeitmessung Logic Analyzer oder SDR verwenden. `ProtocolDecoder` bildet den Einstieg für spätere Empfängerdecoder; `crowdsync.h` kapselt Paket- und Wellenformerzeugung des experimentellen Sendetreibers. Es gibt keinen frei zugänglichen Rohsender-Endpunkt.
 
 Die Funkstrecke ist unidirektional: keine tatsächliche Farbrückmeldung. Gruppen-Schalterzustand bedeutet Sollwert, Funkfreigabe bedeutet Testfenster. Random-/Blinkeffekte und Energiesparen hängen vom Armbandmodell ab. Nach dem Test immer Schwarz senden; bloßes Senderabschalten garantiert keine dunklen LEDs.

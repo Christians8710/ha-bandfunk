@@ -13,6 +13,7 @@ extern "C" {
 #include "ota_key.h"
 #include "protocol.h"
 #include "crowdsync.h"
+#include "setup_page.h"
 
 // GPIO15/D8 stays completely unused: LOW is required at reset.
 constexpr uint8_t CS = D1, DATA = D2, BUTTON = D0;
@@ -151,7 +152,7 @@ void sendStatus() {
   String body; serializeJson(doc,body); server.send(200,"application/json",body);
 }
 const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BandFunk HA</title>
-<h1>BandFunk HA 0.1.1</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
+<h1>BandFunk HA 0.1.2</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
 <p>OTA: Taster D0–GND drei Sekunden halten. Dann ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen.</p>
 <form method="post" action="/update" enctype="multipart/form-data"><label>Signierte Firmware <input type="file" name="firmware" required></label><button>Firmware installieren</button></form>
 <p>Anmeldung: Benutzer admin, Passwort = persönlicher API-Schlüssel von der Einrichtungsseite. Nur im vertrauenswürdigen lokalen Netz verwenden.</p>)HTML";
@@ -169,13 +170,30 @@ void setupRoutes() {
       if (server.client().localIP()!=WiFi.softAPIP()) { server.send(403); return; }
       String page="<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>BandFunk einrichten</title><h1>BandFunk WLAN einrichten</h1><p>Einrichtungs-WLAN-Passwort: <strong>bandfunk2026</strong></p>";
       page+=keyPanel();
-      page+="<h2>Mit deinem Heim-WLAN verbinden</h2><form method=post action=/provision><label>SSID <input name=ssid maxlength=32 required></label><label>WLAN-Passwort <input name=password type=password maxlength=64></label><button>Speichern und neu starten</button></form><p>API-Schlüssel vor dem Speichern kopieren. Später bleibt er auf der Geräte-Webseite nach Anmeldung als admin mit diesem Schlüssel sichtbar. Portal endet nach 10 Minuten.</p></html>";
+      page+=FPSTR(SETUP_FORM); page+="</html>";
       server.send(200,"text/html; charset=utf-8",page);
     } else {
       if (!requireAdmin()) return;
       String page=FPSTR(PAGE); page+=keyPanel(); page+="</html>";
       server.send(200,"text/html; charset=utf-8",page);
     }
+  });
+  server.on("/api/wifi", HTTP_GET, []() {
+    server.sendHeader("Cache-Control","no-store");
+    if (!portal || server.client().localIP()!=WiFi.softAPIP()) { server.send(403); return; }
+    int count=WiFi.scanComplete();
+    if (count==WIFI_SCAN_FAILED) { WiFi.scanNetworks(true,false); server.send(202,"application/json","{\"scanning\":true}"); return; }
+    if (count==WIFI_SCAN_RUNNING) { server.send(202,"application/json","{\"scanning\":true}"); return; }
+    DynamicJsonDocument doc(4096);
+    JsonArray list=doc.createNestedArray("networks");
+    for (int i=0;i<count && list.size()<32;++i) {
+      String name=WiFi.SSID(i); if (!name.length()) continue;
+      JsonObject network=list.createNestedObject();
+      network["ssid"]=name; network["rssi"]=WiFi.RSSI(i);
+      network["secure"]=WiFi.encryptionType(i)!=ENC_TYPE_NONE;
+    }
+    String body; serializeJson(doc,body); WiFi.scanDelete();
+    server.send(200,"application/json",body);
   });
   server.on("/provision", HTTP_POST, []() {
     if (!portal || server.client().localIP() != WiFi.softAPIP()) { server.send(403); return; }
