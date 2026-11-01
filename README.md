@@ -94,3 +94,15 @@ python tools/release.py --private /sicherer/ort/ota-private.pem
 Vorhandenen OTA-Schlüssel weiterverwenden. Plattform, ArduinoJson und WiFiManager sind festgelegt; das Logo wird beim Build lokal eingebettet. Native Tests prüfen Paketformat, Zeiten, Register-Fehlerpfade, Farb-/Helligkeitsumrechnung und Passwortgrenzen. Python/Node führen die tatsächliche Web-Steuerlogik aus; CI testet zusätzlich echte HA-Klassen, hassfest, HACS und den ESP-Stackrahmen. Signaturtests prüfen passende/falsche Schlüssel und manipulierte Images.
 
 `dist/`: HACS-ZIP, Factory-BIN, signiertes OTA-BIN, Manifest und Prüfsummen. ZIP und Signatur sind für gleiche Eingaben deterministisch. Plattformübergreifend bitgleiche Firmware wird nicht ungeprüft versprochen. [Release-Ablauf](docs/RELEASE.md), [Gerätetests und Grenzen](docs/TESTPROTOKOLL.md), [Lizenzen](THIRD_PARTY_NOTICES.md).
+
+## ❤️ Projekt unterstützen
+
+Dieses Projekt wird kostenlos zur Verfügung gestellt und kontinuierlich weiterentwickelt.
+
+Wenn dir die Software gefällt und du die Weiterentwicklung unterstützen möchtest, kannst du dies freiwillig über GitHub Sponsors tun.
+
+❤️ [**Projekt über GitHub Sponsors unterstützen**](https://github.com/sponsors/Christians8710)
+
+Deine Unterstützung hilft bei der Weiterentwicklung, Fehlerbehebung, Wartung und Umsetzung neuer Funktionen.
+
+Vielen Dank für deine Unterstützung!
