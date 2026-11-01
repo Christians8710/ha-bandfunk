@@ -151,17 +151,31 @@ void sendStatus() {
   String body; serializeJson(doc,body); server.send(200,"application/json",body);
 }
 const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>BandFunk HA</title>
-<h1>BandFunk HA 0.1.0</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
+<h1>BandFunk HA 0.1.1</h1><p>Unabhängiges Forschungsprojekt. Experimenteller CrowdSync-RGB-Treiber nach öffentlicher Protokollreferenz. Deine Platinenvariante ist noch nicht hardwaregeprüft. Aktivierung über Home Assistant für jeweils zwei Minuten.</p>
 <p>OTA: Taster D0–GND drei Sekunden halten. Dann ist die Installation fünf Minuten freigegeben. Nur signierte .bin.signed-Dateien werden angenommen.</p>
 <form method="post" action="/update" enctype="multipart/form-data"><label>Signierte Firmware <input type="file" name="firmware" required></label><button>Firmware installieren</button></form>
-<p>Anmeldung: Benutzer admin, Passwort = persönlicher API-Schlüssel aus dem USB-Terminal. Nur im vertrauenswürdigen lokalen Netz verwenden.</p></html>)HTML";
+<p>Anmeldung: Benutzer admin, Passwort = persönlicher API-Schlüssel von der Einrichtungsseite. Nur im vertrauenswürdigen lokalen Netz verwenden.</p>)HTML";
+String keyPanel() {
+  return String("<section><h2>Dein API-Schlüssel für Home Assistant</h2><p>Bei der Einrichtung der BandFunk-Integration einmal eintragen. Dies ist nicht das WLAN-Passwort.</p><label>API-Schlüssel <input id=api-key readonly style='width:100%;box-sizing:border-box' value='") + token +
+    "'></label><button type=button onclick=\"var k=document.getElementById('api-key');k.select();try{document.execCommand('copy');this.textContent='Kopiert';}catch(e){this.textContent='Markiert – bitte kopieren';}\">API-Schlüssel kopieren</button><p>Geräteadresse im Heimnetz: <strong>http://" + hostname + ".local/</strong></p></section>";
+}
 void setupRoutes() {
   server.collectHeaders("Authorization", "Origin");
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Cache-Control","no-store");
+    server.sendHeader("X-Frame-Options","DENY");
+    server.sendHeader("Referrer-Policy","no-referrer");
     if (portal) {
-      server.send(200,"text/html; charset=utf-8", "<!doctype html><html lang=de><meta charset=utf-8><h1>BandFunk WLAN einrichten</h1><form method=post action=/provision><label>SSID <input name=ssid maxlength=32 required></label><label>WLAN-Passwort <input name=password type=password maxlength=64></label><button>Speichern und neu starten</button></form><p>API-Schlüssel und AP-Passwort stehen im USB-Terminal (115200 Baud). Portal endet nach 10 Minuten.</p></html>");
-    } else { if (!requireAdmin()) return; server.send_P(200,"text/html; charset=utf-8",PAGE); }
+      if (server.client().localIP()!=WiFi.softAPIP()) { server.send(403); return; }
+      String page="<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>BandFunk einrichten</title><h1>BandFunk WLAN einrichten</h1><p>Einrichtungs-WLAN-Passwort: <strong>bandfunk2026</strong></p>";
+      page+=keyPanel();
+      page+="<h2>Mit deinem Heim-WLAN verbinden</h2><form method=post action=/provision><label>SSID <input name=ssid maxlength=32 required></label><label>WLAN-Passwort <input name=password type=password maxlength=64></label><button>Speichern und neu starten</button></form><p>API-Schlüssel vor dem Speichern kopieren. Später bleibt er auf der Geräte-Webseite nach Anmeldung als admin mit diesem Schlüssel sichtbar. Portal endet nach 10 Minuten.</p></html>";
+      server.send(200,"text/html; charset=utf-8",page);
+    } else {
+      if (!requireAdmin()) return;
+      String page=FPSTR(PAGE); page+=keyPanel(); page+="</html>";
+      server.send(200,"text/html; charset=utf-8",page);
+    }
   });
   server.on("/provision", HTTP_POST, []() {
     if (!portal || server.client().localIP() != WiFi.softAPIP()) { server.send(403); return; }
@@ -240,7 +254,7 @@ void setup() {
   }
   // Failed existing Wi-Fi does NOT automatically expose provisioning.
   portal=!ssid.length() || recovery;
-  if (portal) { apPassword=randomHex(8); WiFi.mode(WIFI_AP_STA); WiFi.softAP(hostname.c_str(),apPassword.c_str()); Serial.printf("Einrichtungs-WLAN: %s\nAP-Passwort: %s\nhttp://192.168.4.1\n",hostname.c_str(),apPassword.c_str()); }
+  if (portal) { apPassword="bandfunk2026"; WiFi.mode(WIFI_AP_STA); WiFi.softAP(hostname.c_str(),apPassword.c_str()); Serial.printf("Einrichtungs-WLAN: %s\nAP-Passwort: %s\nhttp://192.168.4.1\n",hostname.c_str(),apPassword.c_str()); }
   if (WiFi.status()==WL_CONNECTED && MDNS.begin(hostname)) {
     MDNS.addService("bandfunk","tcp",80); MDNS.addServiceTxt("bandfunk","tcp","id",deviceId); MDNS.addServiceTxt("bandfunk","tcp","api","1");
     Serial.println(WiFi.localIP());

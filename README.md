@@ -1,4 +1,4 @@
-# BandFunk HA · V0.1.0
+# BandFunk HA · V0.1.1
 
 Deutsche HACS-Custom-Integration und ESP8266-Firmware für Wemos/LOLIN D1 mini (4 MB) mit EBYTE E07-M1101D-TH bzw. passendem SMA-Modul, CC1101 bei 433,92 MHz.
 
@@ -12,7 +12,7 @@ BandFunk ist unabhängig und weder vom CrowdSync-Hersteller noch vom Home-Assist
 - Zehn experimentelle Gruppen-Lichtentitäten mit RGB (4 Bit pro Kanal), Helligkeit und 16 dokumentierten Effekten. Zustände sind **gesendete Sollwerte**, keine Empfangsbestätigung.
 - Bewusste Funkfreigabe über einen HA-Schalter, jeweils für zwei Minuten; nach Neustart ausgeschaltet. Der Testbetrieb endet automatisch, eine stehengebliebene LED wird dadurch nicht automatisch ausgeschaltet.
 - Alle zehn Gruppen werden gemeinsam übertragen. Bei Änderungen bleiben die anderen Gruppen-Sollwerte im RAM erhalten. Nach ESP-Neustart sind alle schwarz. Mehrere Armbänder derselben Gruppe sind nicht individuell adressierbar.
-- WLAN-Einrichtung über zeitlich begrenztes WPA2-AP mit zufälligem Passwort. Keine Improv-Serial-Provisionierung: ESP Web Tools dient hier dem USB-Flash und Terminal, WLAN wird über das Geräteportal eingerichtet.
+- WLAN-Einrichtung über zeitlich begrenztes WPA2-AP mit festem Passwort `bandfunk2026`. Keine Improv-Serial-Provisionierung: ESP Web Tools dient hier dem USB-Flash und Terminal, WLAN wird über das Geräteportal eingerichtet.
 - OTA mit RSA-2048/SHA-256-Signaturprüfung, Digest-Anmeldung, zusätzlichem physischem Freigabefenster, Statusdiagnostik und Recovery-Modus.
 - Keine Cloud-Verbindung für den laufenden Betrieb. Die lokale API nutzt HTTP mit Bearer-Schlüssel und ist nur für ein vertrauenswürdiges LAN vorgesehen; sie ist nicht Ende-zu-Ende verschlüsselt.
 
@@ -42,9 +42,9 @@ Die Zahlen beziehen sich auf die [offizielle EBYTE-TH-Tabelle](https://www.ebyte
 1. In HACS → Menü → Benutzerdefinierte Repositories: `https://github.com/Christians8710/ha-bandfunk`, Typ **Integration** hinzufügen.
 2. **BandFunk HA** herunterladen, Home Assistant neu starten.
 3. [HTTPS-Web-Flasher](https://Christians8710.github.io/ha-bandfunk/) am PC mit dem angeschlossenen ESP öffnen. Desktop-Chrome oder Edge mit Web Serial verwenden. Zugriff erfolgt auf den COM-Port **dieses PCs**, nicht auf den HA-Server. Eventuell CH340-Treiber und ein echtes USB-Datenkabel erforderlich.
-4. Einmalig `bandfunk-0.1.0.bin` flashen. Im Terminal bei 115200 Baud persönlichen API-Schlüssel und Einrichtungs-WLAN samt Passwort ablesen und privat sichern. Zugangsdaten werden erst auf dem Gerät erzeugt und sind nicht im Download eingebaut.
+4. Einmalig `bandfunk-0.1.1.bin` flashen. Mit dem Einrichtungs-WLAN `bandfunk-…` und Passwort `bandfunk2026` verbinden. In Chrome `http://192.168.4.1` öffnen: Dort steht der persönliche API-Schlüssel mit Kopierknopf. Vor dem Speichern der WLAN-Daten privat sichern. Der API-Schlüssel wird pro Gerät erzeugt; das Einrichtungs-WLAN-Passwort ist bewusst fest vorgegeben.
 5. Mit `bandfunk-…` verbinden, `http://192.168.4.1` öffnen, SSID und WLAN-Passwort eingeben. Anschließend wieder das Heimnetz verwenden. Portal schließt nach zehn Minuten. Eine reine WLAN-Störung öffnet es nicht erneut.
-6. HA → Einstellungen → Geräte & Dienste → Integration hinzufügen → **BandFunk HA**. Host und API-Schlüssel eingeben oder mDNS-Fund auswählen. Discovery benötigt ein gemeinsames Multicast-Netz; andernfalls IP manuell eintragen. DHCP-Reservierung empfohlen.
+6. HA → Einstellungen → Geräte & Dienste → Integration hinzufügen → **BandFunk HA**. Host und API-Schlüssel eingeben oder mDNS-Fund auswählen. Der Schlüssel bleibt später auch auf der lokalen Geräte-Webseite sichtbar: Anmeldung als `admin`, Passwort ist der API-Schlüssel. Diese Anzeige funktioniert in Chrome und bleibt vor anonymem Zugriff aus dem Heimnetz geschützt. Discovery benötigt ein gemeinsames Multicast-Netz; andernfalls IP manuell eintragen. DHCP-Reservierung empfohlen.
 
 ## Erster RGB-Test mit den zwei Armbändern
 
@@ -92,6 +92,6 @@ Das Repository enthält bereits den öffentlichen Projektschlüssel: `keys/ota-p
 
 HA bietet WLAN-RSSI, Laufzeit, freien RAM, Firmware, Flanken-/Verlustzähler, Funkmodul-, Recovery- und OTA-Status. Diagnoseexport benutzt eine feste Freigabeliste ohne API-Schlüssel, IP, MAC, SSID oder WLAN-Passwort. Der API-Schlüssel wird in HA wie andere Integrationseinstellungen gespeichert: HA-Backups schützen.
 
-Der Empfangsring ist auf 255 Flanken begrenzt und wird im Hauptprogramm geleert. Die V0.1.0 zählt Flanken, ist aber kein vollständiger Mitschnitt- oder OOK-Decoder. Für genaue Zeitmessung Logic Analyzer oder SDR verwenden. `ProtocolDecoder` bildet den Einstieg für spätere Empfängerdecoder; `crowdsync.h` kapselt Paket- und Wellenformerzeugung des experimentellen Sendetreibers. Es gibt keinen frei zugänglichen Rohsender-Endpunkt.
+Der Empfangsring ist auf 255 Flanken begrenzt und wird im Hauptprogramm geleert. Die V0.1.1 zählt Flanken, ist aber kein vollständiger Mitschnitt- oder OOK-Decoder. Für genaue Zeitmessung Logic Analyzer oder SDR verwenden. `ProtocolDecoder` bildet den Einstieg für spätere Empfängerdecoder; `crowdsync.h` kapselt Paket- und Wellenformerzeugung des experimentellen Sendetreibers. Es gibt keinen frei zugänglichen Rohsender-Endpunkt.
 
 Die Funkstrecke ist unidirektional: keine tatsächliche Farbrückmeldung. Gruppen-Schalterzustand bedeutet Sollwert, Funkfreigabe bedeutet Testfenster. Random-/Blinkeffekte und Energiesparen hängen vom Armbandmodell ab. Nach dem Test immer Schwarz senden; bloßes Senderabschalten garantiert keine dunklen LEDs.
