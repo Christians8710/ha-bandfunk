@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.2.4
+
+Fehler bei Passwortänderung und Firmware-Upload stehen direkt im jeweiligen Formular und werden nicht mehr von Statusabfragen überschrieben. Fehler bei Steuerbefehlen bleiben bis zum nächsten erfolgreichen Befehl sichtbar; Verbindungsfehler verschwinden nach erfolgreicher Wiederverbindung. Unveränderte Statusmeldungen werden nicht fortlaufend neu in den Meldungsbereich geschrieben.
+
+Eingabefelder haben einen besser erkennbaren Rahmen (#6a8790, 3,35:1 gegenüber der Kartenfläche). Die Farbauswahl zeigt einen Auswahlring, ein Häkchen, den Farbnamen beziehungsweise Hexwert und den Auswahlzustand für Screenreader. Funkprotokoll, Anmeldung, WLAN und OTA-Vertrauensschlüssel bleiben unverändert.
+
 ## 0.2.3
 
 Geräteoberfläche, Anmeldung, WLAN-Portal, Lizenzseite und Web-Flasher verwenden eine gemeinsame Gestaltung. Farben und Abstände stehen zentral in `web/assets/bandfunk.css` und werden für die Firmware lokal eingebettet. Sichtbarer Tastaturfokus, größere Farbtasten, geordnete Farbauswahl auf kleinen Bildschirmen und bessere Umbrüche ergänzen die Bedienung. Das vorhandene Logo und die freiwillige GitHub-Sponsors-Konfiguration bleiben erhalten.
